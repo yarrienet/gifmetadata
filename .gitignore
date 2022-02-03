@@ -1,0 +1,6 @@
+*.gif
+a.out*
+build/
+gifpeek
+.DS_Store
+*.tar.gz
