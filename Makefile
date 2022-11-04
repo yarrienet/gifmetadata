@@ -1,10 +1,10 @@
 CC=gcc
 VERSION=v0.0.1
-PRODUCT=gifpeek
+PRODUCT=gifmetadata
 SOURCE=.gitignore Makefile main.c README.md
 
 main: main.c
-	$(CC) main.c -o $(PRODUCT)
+	$(CC) main.c -lm -o $(PRODUCT)
 
 mac_x86_64: main.c
 	mkdir -p build/mac_x86_64

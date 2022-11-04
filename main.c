@@ -1,6 +1,6 @@
 // MIT License
 // 
-// Copyright (c) 2022 yarrie
+// Copyright (c) 2022 Harry Stanton
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,11 +20,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// gifpeek
+// gifmetadata
 // version 0.0.1
 //
-// by yarrie <yarrie@sent.com>
-// https://yarrie.neocities.org/gifpeek
+// Harry Stanton <harry@harrystanton.com>
+// https://github.com/harrego/gifmetadata
 //
 // designed to
 //     1. be fast
@@ -94,21 +94,21 @@ char strncpy_(const char *s1, const char *s2, size_t n) {
 }
 
 void print_help() {
-	printf("gifpeek\n");
+	printf("gifmetadata\n");
 	printf("version 0.0.1\n\n");
 
-	printf("by yarrie <yarrie@sent.com>\n");
-	printf("https://yarrie.neocities.org/gifpeek\n\n");
+	printf("Harry Stanton <harry@harrystanton.com>\n");
+	printf("https://github.com/harrego/gifmetadata\n\n");
 	
 	printf("OVERVIEW:\n");
 	printf("    GIFs contain 'comments' that were commonly used to attribute copyright\n");
 	printf("    and attribution in the early days of the web. Since then, programs have\n");
 	printf("    lost the ability to read and write this data.\n\n");
 	
-	printf("    gifpeek reads and outputs this data.\n\n");
+	printf("    gifmetadata reads and outputs this data.\n\n");
 	
 	printf("OUTPUT:\n");
-	printf("    gifpeek can read comments, application extensions and plain text\n");
+	printf("    gifmetadata can read comments, application extensions and plain text\n");
 	printf("    embedded within a GIF.\n\n");
 	
 	printf("    comments:                Text messages limited to 256 characters, primarily\n");
@@ -127,7 +127,7 @@ void print_help() {
     printf("                             plain text on-top of images that was never utilized.\n");
     printf("                             Prefixed with \"plain text:\".\n\n");
 	
-	printf("USAGE: gifpeek [options] file\n\n");
+	printf("USAGE: gifmetadata [options] file\n\n");
 	
 	printf("OPTIONS:\n");
 	
@@ -623,7 +623,7 @@ int main(int argc, char **argv) {
 		printf("[dev] finished reading image\n");
 		
 	if (state != trailer)
-		printf("[warning] file was incompatible and therefore gifpeek may have missed some data, recommended that you view this file in a hex editor to get more information\n");
+		printf("[warning] file was incompatible and therefore gifmetadata may have missed some data, recommended that you view this file in a hex editor to get more information\n");
 	
 	fclose(fileptr);
 
