@@ -77,6 +77,7 @@ const char gif_sig[] = { 'G', 'I', 'F' };
 const char gif_87a[] = { '8', '7', 'a'};
 const char gif_89a[] = { '8', '9', 'a'};
 
+const char arg_all[] = "all";
 const char arg_verbose[] = "verbose";
 const char arg_dev[] = "dev";
 const char arg_help[] = "help";
@@ -132,6 +133,7 @@ void print_help() {
 	printf("OPTIONS:\n");
 	
 	printf("    -h / --help      Display help, options and program info\n");
+	printf("    -a / --all       Display all GIF metadata blocks instead of only the comment\n");
 	printf("    -v / --verbose   Display more data about the gif, e.g. width/height\n");
 	printf("    -d / --dev       Display inner program workings intended for developers\n");
 }
@@ -144,6 +146,7 @@ int main(int argc, char **argv) {
 	// char even tho its a bigger size bcs
 	// cpus are designed to work with ints
 	// https://stackoverflow.com/questions/9521140/char-or-int-for-boolean-value-in-c
+	int all_flag = 0;
 	int verbose_flag = 0;
 	int dev_flag = 0;
 
@@ -172,7 +175,13 @@ int main(int argc, char **argv) {
 				
 				// dirty self strncmp... if i add more
 				// args ill just make a function
-				if (arg_len == sizeof(arg_verbose)) {
+				if (arg_len == sizeof(arg_all)) {
+					if (strncpy_(long_arg, (const char*)&arg_all, arg_len) == 0) {
+						all_flag = 1;
+						free(long_arg);
+						continue;
+					}
+				} else if (arg_len == sizeof(arg_verbose)) {
 					if (strncpy_(long_arg, (const char*)&arg_verbose, arg_len) == 0) {
 						verbose_flag = 1;
 						free(long_arg);
@@ -194,7 +203,7 @@ int main(int argc, char **argv) {
 					}
 				}
 				
-				printf("[error] unknown flag: %s\n", long_arg);
+				fprintf(stderr, "[error] unknown flag: %s\n", long_arg);
 				if (filename != NULL)
 					free(filename);
 				free(long_arg);
@@ -203,6 +212,9 @@ int main(int argc, char **argv) {
 				y = 1;
 				while (argv[x][y] != '\0') {
 					switch (argv[x][y]) {
+					case 'a':
+						all_flag = 1;
+						break;
 					case 'v':
 						verbose_flag = 1;
 						break;
@@ -215,7 +227,7 @@ int main(int argc, char **argv) {
 						print_help();
 						return 1;
 					default:
-						printf("[error] unknown flag: %c\n", argv[x][y]);
+						fprintf(stderr, "[error] unknown flag: %c\n", argv[x][y]);
 						if (filename != NULL)
 							free(filename);
 						return 1;
@@ -225,7 +237,7 @@ int main(int argc, char **argv) {
 			}
 		} else {
 			if (filename != NULL) {
-				printf("[error] specified more than one file, i can only read one\n");
+				fprintf(stderr, "[error] specified more than one file, i can only read one\n");
 				free(filename);
 				return 1;
 			}
@@ -250,7 +262,7 @@ int main(int argc, char **argv) {
 	}
 	
 	if (filename == NULL) {
-		printf("[error] you never specified a file to open\n");
+		fprintf(stderr, "[error] you never specified a file to open\n");
 		return 1;
 	}
 
@@ -258,7 +270,7 @@ int main(int argc, char **argv) {
 	long filelen;
 	
 	if (access(filename, F_OK) != 0) {
-		printf("[error] file '%s' cannot be accessed\n", filename);
+		fprintf(stderr, "[error] file '%s' cannot be accessed\n", filename);
 		free(filename);
 		return 1;
 	}
@@ -276,7 +288,7 @@ int main(int argc, char **argv) {
 	
 	// step 1: check file is a gif
 	if (6 > filelen) {
-		printf("[error] file does not appear to be a gif (too small)\n");
+		fprintf(stderr, "[error] file does not appear to be a gif (too small)\n");
 		fclose(fileptr);
 		free(filename);
 		return 1;
@@ -316,7 +328,7 @@ int main(int argc, char **argv) {
 
 			for (i = 0; i < sizeof(gif_sig); i++) {
 				if (buffer[i] != gif_sig[i]) {
-					printf("[error] file does not appear to be a gif (wrong sig)\n");
+					fprintf(stderr, "[error] file does not appear to be a gif (wrong sig)\n");
 					fclose(fileptr);
 					free(filename);
 					return 1;
@@ -339,11 +351,11 @@ int main(int argc, char **argv) {
 				}
 			}
 			if (unsupported_version) {
-				printf("[warning] gif is an unsupported version: ");
+				fprintf(stderr, "[warning] gif is an unsupported version: ");
 				for (i = sizeof(gif_sig); i < 6; i++) {
-					printf("%c", buffer[i]);
+					fprintf(stderr, "%c", buffer[i]);
 				}
-				printf("\n");
+				fprintf(stderr, "\n");
 			}
 			state = logical_screen_descriptor;
 			local_lsd_state = 0;
@@ -519,11 +531,13 @@ int main(int argc, char **argv) {
 							scratchpad_i = 0;
 							scratchpad_len = buffer[i];
 							
-							if (local_extension_type == application) {
-								printf("application: %s\n", scratchpad);
-								local_extension_type = application_subblock;
-							} else {
-								printf("- %s\n", scratchpad);
+							if (all_flag) {
+								if (local_extension_type == application) {
+									printf("application: %s\n", scratchpad);
+									local_extension_type = application_subblock;
+								} else {
+									printf("application sub-block: %d bytes\n", scratchpad_len);
+								}
 							}
 							
 							if (scratchpad_len == 0) {
@@ -536,9 +550,13 @@ int main(int argc, char **argv) {
 								// terminate and await next block
 								scratchpad[scratchpad_i] = '\0';
 								if (local_extension_type == plain_text) {
-									printf("plain text: %s\n", scratchpad);
+									if (all_flag)
+										printf("plain text: %s\n", scratchpad);
 								} else if (local_extension_type == comment) {
-									printf("comment: %s\n", scratchpad);
+									if (all_flag)
+										printf("comment: %s\n", scratchpad);
+									else
+										printf("%s\n", scratchpad);
 								}
 								state = searching;
 							}
@@ -623,7 +641,7 @@ int main(int argc, char **argv) {
 		printf("[dev] finished reading image\n");
 		
 	if (state != trailer)
-		printf("[warning] file was incompatible and therefore gifmetadata may have missed some data, recommended that you view this file in a hex editor to get more information\n");
+		fprintf(stderr, "[warning] file was incompatible and therefore gifmetadata may have missed some data, recommended that you view this file in a hex editor to get more information\n");
 	
 	fclose(fileptr);
 

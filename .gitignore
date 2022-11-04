@@ -1,6 +1,7 @@
 *.gif
 a.out*
 build/
-gifpeek
+gifmetadata
+*.txt
 .DS_Store
 *.tar.gz
