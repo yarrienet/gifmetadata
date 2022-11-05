@@ -1,20 +1,5 @@
 #include "gif.h"
 
-enum file_read_state {
-	header,
-	logical_screen_descriptor,
-	global_color_table,
-	control_extension,
-	image_descriptor,
-	local_color_table,
-	image_data,
-	extension,
-	known_extension,
-	unknown_extension,
-	trailer,
-	searching
-};
-
 // lsd = local screen descriptor
 enum lsd_state {
 	width,
@@ -24,25 +9,31 @@ enum lsd_state {
 	pixel_aspect_ratio
 };
 
-enum extension_type {
-	plain_text,
-	application,
-	application_subblock,
-	comment
-};
-
 const char gif_sig[] = { 'G', 'I', 'F' };
 const char gif_87a[] = { '8', '7', 'a'};
 const char gif_89a[] = { '8', '9', 'a'};
 
-void read_gif_file(FILE *file) {
-    filelen = ftell(file);
+int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void (*state_cb)(enum file_read_state)) {
+    // temp variables
+    int dev_flag = 0;
+    int all_flag = 0;
+    int verbose_flag = 0;
+
+    fseek(file, 0, SEEK_END);
+	size_t filelen = ftell(file);
+	rewind(file);
+	
+	// if (verbose_flag)
+		// printf("[verbose] opened file '%s'\n", args->filename);
+	
+	if (verbose_flag)
+		printf("[verbose] file size: %ld bytes\n", filelen);
 
     // step 1: check file is a gif
 	if (6 > filelen) {
 		fprintf(stderr, "[error] file does not appear to be a gif (too small)\n");
 		fclose(file);
-		free(filename);
+		// free(filename);
 		return 1;
 	}
 	
@@ -68,8 +59,17 @@ void read_gif_file(FILE *file) {
 	// local screen descriptor
 	enum lsd_state local_lsd_state;
 	enum extension_type local_extension_type;
-	
+
 	int bytes_to_read;
+
+    struct extension_info *extension_cb_info;
+    if (extension_cb != NULL)
+        extension_cb_info = malloc(sizeof(struct extension_info));
+    
+    // struct state_info *state_cb_info;
+    // if (state_cb != NULL)
+        // state_info = malloc(sizeof(struct state_info));
+
 	while ((bytes_to_read = fread(buffer, sizeof(unsigned char), 256, file)) > 0) {
 		int i = 0;
 		
@@ -82,7 +82,8 @@ void read_gif_file(FILE *file) {
 				if (buffer[i] != gif_sig[i]) {
 					fprintf(stderr, "[error] file does not appear to be a gif (wrong sig)\n");
 					fclose(file);
-					free(filename);
+                    free(extension_cb_info);
+					// free(filename);
 					return 1;
 				}
 			}
@@ -315,6 +316,11 @@ void read_gif_file(FILE *file) {
 							// else await the null terminator and
 							// do not overflow buffer
 						}
+                        if (extension_cb_info) {
+                            extension_cb_info->type = local_extension_type;
+                            extension_cb_info->buffer = scratchpad;
+                            extension_cb(extension_cb_info);
+                        }
 					}
 					
 				}
@@ -386,6 +392,9 @@ void read_gif_file(FILE *file) {
 		}
 		
 	}
-	free(filename);
+	// free(filename);
+    free(extension_cb_info);
 	free(scratchpad);
+
+    return 0;
 }

@@ -43,7 +43,39 @@
 #include <math.h>
 
 #include "cli.h"
-//#include "gif.h"
+#include "gif.h"
+
+/*
+enum extension_type {
+	plain_text,
+	application,
+	application_subblock,
+	comment
+};*/
+
+// int read_gif_file(FILE *file, void (*callback)(struct gif_block*));
+void extension_callback(struct extension_info *extension) {
+	printf("extension callback recv a block: ");
+	switch (extension->type) {
+		case plain_text:
+			printf("- plain text");
+			break;
+		case application:
+			printf("- application");
+			break;
+		case application_subblock:
+			printf("- application_sublock");
+			break;
+		case comment:
+			printf("- comment");
+			if (extension->buffer != NULL)
+				printf(": %s", extension->buffer);
+			break;
+		default:
+			printf("- ??????? idk");
+	}
+	printf("\n");
+}
 
 int main(int argc, char **argv) {
 
@@ -71,17 +103,8 @@ int main(int argc, char **argv) {
 	}
 	
 	fileptr = fopen(args->filename, "rb");
-	fseek(fileptr, 0, SEEK_END);
-	filelen = ftell(fileptr);
-	rewind(fileptr);
 	
-	if (args->verbose_flag)
-		printf("[verbose] opened file '%s'\n", args->filename);
-	
-	if (args->verbose_flag)
-		printf("[verbose] file size: %ld bytes\n", filelen);
-	
-	// read_gif_file(fileptr);
+	read_gif_file(fileptr, &extension_callback, NULL);
 	
 	if (args->dev_flag)
 		printf("[dev] finished reading image\n");
