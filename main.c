@@ -45,15 +45,6 @@
 #include "cli.h"
 #include "gif.h"
 
-/*
-enum extension_type {
-	plain_text,
-	application,
-	application_subblock,
-	comment
-};*/
-
-// int read_gif_file(FILE *file, void (*callback)(struct gif_block*));
 void extension_callback(struct extension_info *extension) {
 	printf("extension callback recv a block: ");
 	switch (extension->type) {
@@ -104,7 +95,7 @@ int main(int argc, char **argv) {
 	
 	fileptr = fopen(args->filename, "rb");
 	
-	read_gif_file(fileptr, &extension_callback, NULL);
+	read_gif_file(fileptr, &extension_callback, NULL, args->verbose_flag, args->dev_flag);
 	
 	if (args->dev_flag)
 		printf("[dev] finished reading image\n");

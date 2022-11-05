@@ -13,12 +13,7 @@ const char gif_sig[] = { 'G', 'I', 'F' };
 const char gif_87a[] = { '8', '7', 'a'};
 const char gif_89a[] = { '8', '9', 'a'};
 
-int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void (*state_cb)(enum file_read_state)) {
-    // temp variables
-    int dev_flag = 0;
-    int all_flag = 0;
-    int verbose_flag = 0;
-
+enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void (*state_cb)(enum file_read_state), int verbose_flag, int dev_flag) {
     fseek(file, 0, SEEK_END);
 	size_t filelen = ftell(file);
 	rewind(file);
@@ -31,10 +26,10 @@ int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void
 
     // step 1: check file is a gif
 	if (6 > filelen) {
-		fprintf(stderr, "[error] file does not appear to be a gif (too small)\n");
+		// fprintf(stderr, "[error] file does not appear to be a gif (too small)\n");
 		fclose(file);
 		// free(filename);
-		return 1;
+		return GIF_FILE_MISSING_SIG;
 	}
 	
 	// program reads the file in 256 chunks, and then requests
@@ -65,10 +60,6 @@ int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void
     struct extension_info *extension_cb_info;
     if (extension_cb != NULL)
         extension_cb_info = malloc(sizeof(struct extension_info));
-    
-    // struct state_info *state_cb_info;
-    // if (state_cb != NULL)
-        // state_info = malloc(sizeof(struct state_info));
 
 	while ((bytes_to_read = fread(buffer, sizeof(unsigned char), 256, file)) > 0) {
 		int i = 0;
@@ -80,11 +71,11 @@ int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void
 
 			for (i = 0; i < sizeof(gif_sig); i++) {
 				if (buffer[i] != gif_sig[i]) {
-					fprintf(stderr, "[error] file does not appear to be a gif (wrong sig)\n");
+					// fprintf(stderr, "[error] file does not appear to be a gif (wrong sig)\n");
 					fclose(file);
                     free(extension_cb_info);
 					// free(filename);
-					return 1;
+					return GIF_FILE_INVALID_SIG;
 				}
 			}
 			char unsupported_version = 0;
@@ -284,14 +275,9 @@ int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void
 							scratchpad_i = 0;
 							scratchpad_len = buffer[i];
 							
-							if (all_flag) {
-								if (local_extension_type == application) {
-									printf("application: %s\n", scratchpad);
-									local_extension_type = application_subblock;
-								} else {
-									printf("application sub-block: %d bytes\n", scratchpad_len);
-								}
-							}
+                            // previous printf
+
+							local_extension_type = application_subblock;
 							
 							if (scratchpad_len == 0) {
 								state = searching;
@@ -302,15 +288,9 @@ int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void
 								// if null terminated,
 								// terminate and await next block
 								scratchpad[scratchpad_i] = '\0';
-								if (local_extension_type == plain_text) {
-									if (all_flag)
-										printf("plain text: %s\n", scratchpad);
-								} else if (local_extension_type == comment) {
-									if (all_flag)
-										printf("comment: %s\n", scratchpad);
-									else
-										printf("%s\n", scratchpad);
-								}
+
+                                // previous printf
+
 								state = searching;
 							}
 							// else await the null terminator and
@@ -396,5 +376,5 @@ int read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void
     free(extension_cb_info);
 	free(scratchpad);
 
-    return 0;
+    return GIF_FILE_SUCCESS;
 }
