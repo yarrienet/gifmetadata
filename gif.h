@@ -16,6 +16,7 @@ enum extension_type {
 struct extension_info {
     enum extension_type type;
     char *buffer;
+    size_t buffer_len;
 };
 
 // state callbacks

@@ -45,33 +45,36 @@
 #include "cli.h"
 #include "gif.h"
 
+int all_flag = 0;
+
 void extension_callback(struct extension_info *extension) {
-	printf("extension callback recv a block: ");
-	switch (extension->type) {
+	if (all_flag) {
+		switch (extension->type) {
 		case plain_text:
-			printf("- plain text");
+			printf("plain text: %s\n", extension->buffer);
 			break;
 		case application:
-			printf("- application");
+			printf("application: %s\n", extension->buffer);
 			break;
 		case application_subblock:
-			printf("- application_sublock");
+			printf("application_sub (%ld bytes)\n", extension->buffer_len);
 			break;
 		case comment:
-			printf("- comment");
-			if (extension->buffer != NULL)
-				printf(": %s", extension->buffer);
-			break;
-		default:
-			printf("- ??????? idk");
+			printf("comment: %s\n", extension->buffer);
+		}
+	} else {
+		if (extension->type == comment) {
+			printf("%s\n", extension->buffer);
+		}
 	}
-	printf("\n");
 }
 
 int main(int argc, char **argv) {
 
 	struct cli_args *args = parse_args(argc, argv);
 	
+	all_flag = args->all_flag;
+
 	if (args->dev_flag) {
 		printf("[dev] dev flag active\n");
 		if (args->verbose_flag) {

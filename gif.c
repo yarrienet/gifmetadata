@@ -299,6 +299,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                         if (extension_cb_info) {
                             extension_cb_info->type = local_extension_type;
                             extension_cb_info->buffer = scratchpad;
+                            extension_cb_info->buffer_len = scratchpad_len;
                             extension_cb(extension_cb_info);
                         }
 					}
