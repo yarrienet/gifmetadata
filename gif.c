@@ -26,9 +26,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 
     // step 1: check file is a gif
 	if (6 > filelen) {
-		// fprintf(stderr, "[error] file does not appear to be a gif (too small)\n");
 		fclose(file);
-		// free(filename);
 		return GIF_FILE_MISSING_SIG;
 	}
 	
@@ -71,10 +69,8 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 
 			for (i = 0; i < sizeof(gif_sig); i++) {
 				if (buffer[i] != gif_sig[i]) {
-					// fprintf(stderr, "[error] file does not appear to be a gif (wrong sig)\n");
 					fclose(file);
                     free(extension_cb_info);
-					// free(filename);
 					return GIF_FILE_INVALID_SIG;
 				}
 			}
@@ -275,10 +271,6 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 							scratchpad_i = 0;
 							scratchpad_len = buffer[i];
 							
-                            // previous printf
-
-							local_extension_type = application_subblock;
-							
 							if (scratchpad_len == 0) {
 								state = searching;
 								break;
@@ -288,8 +280,6 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 								// if null terminated,
 								// terminate and await next block
 								scratchpad[scratchpad_i] = '\0';
-
-                                // previous printf
 
 								state = searching;
 							}
@@ -302,6 +292,9 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                             extension_cb_info->buffer_len = scratchpad_len;
                             extension_cb(extension_cb_info);
                         }
+                        // for the next byte
+                        if (local_extension_type == application)
+                            local_extension_type = application_subblock;
 					}
 					
 				}
@@ -373,9 +366,12 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 		}
 		
 	}
-	// free(filename);
     free(extension_cb_info);
 	free(scratchpad);
+
+    	
+	if (state != trailer)
+		fprintf(stderr, "[warning] file was incompatible and therefore gifpeek may have missed some data, recommended that you view this file in a hex editor to get more information\n");
 
     return GIF_FILE_SUCCESS;
 }

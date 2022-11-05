@@ -54,13 +54,13 @@ void extension_callback(struct extension_info *extension) {
 			printf("plain text: %s\n", extension->buffer);
 			break;
 		case application:
-			printf("application: %s\n", extension->buffer);
+			printf("application: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
 			break;
 		case application_subblock:
-			printf("application_sub (%ld bytes)\n", extension->buffer_len);
+			printf("application sub-block (%ld bytes)\n", extension->buffer_len);
 			break;
 		case comment:
-			printf("comment: %s\n", extension->buffer);
+			printf("comment: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
 		}
 	} else {
 		if (extension->type == comment) {
@@ -102,10 +102,6 @@ int main(int argc, char **argv) {
 	
 	if (args->dev_flag)
 		printf("[dev] finished reading image\n");
-		
-	// TODO: put this back into gif.c
-	// if (state != trailer)
-		// fprintf(stderr, "[warning] file was incompatible and therefore gifmetadata may have missed some data, recommended that you view this file in a hex editor to get more information\n");
 	
 	fclose(fileptr);
 	if (args->filename != NULL)
