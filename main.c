@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
 	if (access(args->filename, F_OK) != 0) {
 		fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
 		free(args->filename);
+		free(args);
 		return 1;
 	}
 	
