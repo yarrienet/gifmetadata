@@ -26,8 +26,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 
     // step 1: check file is a gif
 	if (6 > filelen) {
-		fclose(file);
-		return GIF_FILE_MISSING_SIG;
+		return GIF_FILE_INVALID_SIG;
 	}
 	
 	// program reads the file in 256 chunks, and then requests
@@ -70,7 +69,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 			const size_t gif_sig_len = sizeof(gif_sig);
 			for (i = 0; i < gif_sig_len; i++) {
 				if (buffer[i] != gif_sig[i]) {
-					fclose(file);
+					free(scratchpad);
                     free(extension_cb_info);
 					return GIF_FILE_INVALID_SIG;
 				}

@@ -102,16 +102,22 @@ int main(int argc, char **argv) {
 	}
 	
 	fileptr = fopen(args->filename, "rb");
-	
-	read_gif_file(fileptr, &extension_callback, NULL, args->verbose_flag, args->dev_flag);
-	
-	if (args->dev_flag)
-		printf("[dev] finished reading image\n");
+
+	enum read_gif_file_status gif_status = read_gif_file(fileptr, &extension_callback, NULL, args->verbose_flag, args->dev_flag);
+	if (gif_status > 0) {
+		switch (gif_status) {
+		case GIF_FILE_INVALID_SIG:
+			fprintf(stderr, "[error] file is an unsupported gif version\n");
+		}
+	} else {
+		if (args->dev_flag)
+			printf("[dev] finished reading image\n");
+	}
 	
 	fclose(fileptr);
 	if (args->filename != NULL)
 		free(args->filename);
 	free(args);
 
-	return 0;
+	return gif_status > 0 ? 1 : 0;
 }
