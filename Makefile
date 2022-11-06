@@ -2,8 +2,8 @@ TARGET=gifmetadata
 CC=gcc
 VERSION=v0.0.1
 SOURCE=.gitignore Makefile main.c README.md
-#CFLAGS=-fsanitize=address
-CFLAGS=
+CFLAGS=-fsanitize=address
+# CFLAGS=
 LIBS=-lm
 
 OBJS = main.o cli.o gif.o

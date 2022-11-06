@@ -72,6 +72,9 @@ void extension_callback(struct extension_info *extension) {
 int main(int argc, char **argv) {
 
 	struct cli_args *args = parse_args(argc, argv);
+	// returns null when handled e.g. help
+	if (args == NULL)
+		return 0;
 	
 	all_flag = args->all_flag;
 
@@ -84,6 +87,7 @@ int main(int argc, char **argv) {
 	
 	if (args->filename == NULL) {
 		fprintf(stderr, "[error] you never specified a file to open\n");
+		free(args);
 		return 1;
 	}
 

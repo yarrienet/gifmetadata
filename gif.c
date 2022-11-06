@@ -67,16 +67,18 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 		// a file
 		if (state == header) {
 
-			for (i = 0; i < sizeof(gif_sig); i++) {
+			const size_t gif_sig_len = sizeof(gif_sig);
+			for (i = 0; i < gif_sig_len; i++) {
 				if (buffer[i] != gif_sig[i]) {
 					fclose(file);
                     free(extension_cb_info);
 					return GIF_FILE_INVALID_SIG;
 				}
 			}
+
 			char unsupported_version = 0;
-			for (; i < 6; i++) {
-				if (buffer[i] != gif_87a[i] && buffer[i] != gif_89a[i]) {
+			for (i = 0; i < 3; i++) {
+				if (buffer[i+gif_sig_len] != gif_87a[i] && buffer[i+gif_sig_len] != gif_89a[i]) {
 					unsupported_version = 1;
 					break;
 				}
