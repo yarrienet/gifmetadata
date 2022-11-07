@@ -266,9 +266,18 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 						scratchpad[scratchpad_i] = buffer[i];
 						scratchpad_i++;
 					} else {
-						// if length has been met...
-						if (local_extension_type == application || local_extension_type == application_subblock) {
-							scratchpad[scratchpad_i] = '\0';
+						scratchpad[scratchpad_i] = '\0';
+						
+						if (extension_cb_info) {
+                            extension_cb_info->type = local_extension_type;
+                            extension_cb_info->buffer = scratchpad;
+                            extension_cb_info->buffer_len = scratchpad_len;
+                            extension_cb(extension_cb_info);
+                        }
+
+                        // for the next byte
+                        if (local_extension_type == application || local_extension_type == application_subblock) {
+							local_extension_type = application_subblock;
 							scratchpad_i = 0;
 							scratchpad_len = buffer[i];
 							
@@ -276,26 +285,10 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 								state = searching;
 								break;
 							}
-						} else {
-							if (buffer[i] == 0) {
-								// if null terminated,
-								// terminate and await next block
-								scratchpad[scratchpad_i] = '\0';
-
-								state = searching;
-							}
-							// else await the null terminator and
-							// do not overflow buffer
+						} else if (buffer[i] == 0) {
+							// if null terminated then await next block
+							state = searching;
 						}
-                        if (extension_cb_info) {
-                            extension_cb_info->type = local_extension_type;
-                            extension_cb_info->buffer = scratchpad;
-                            extension_cb_info->buffer_len = scratchpad_len;
-                            extension_cb(extension_cb_info);
-                        }
-                        // for the next byte
-                        if (local_extension_type == application)
-                            local_extension_type = application_subblock;
 					}
 					
 				}
