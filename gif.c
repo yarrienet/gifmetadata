@@ -252,7 +252,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                 }
                 break;
             case known_extension:
-                            // if the scratchpatch len is empty
+                // if the scratchpatch len is empty
                 // then must be new block
                 if (scratchpad_len == 0) {
                     // if the new size of the block is
