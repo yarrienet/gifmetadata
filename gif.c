@@ -82,6 +82,9 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 					break;
 				}
 			}
+			// pushing i past the sig (length of 6)
+			i = 6;
+			
 			if (verbose_flag) {
 				if (buffer[3] == '8') {
 					if (buffer[4] == '7') {
