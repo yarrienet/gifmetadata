@@ -48,76 +48,76 @@
 int all_flag = 0;
 
 void extension_callback(struct extension_info *extension) {
-	if (all_flag) {
-		switch (extension->type) {
-		case plain_text:
-			printf("plain text: %s\n", extension->buffer);
-			break;
-		case application:
-			printf("application: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
-			break;
-		case application_subblock:
-			printf("application sub-block (%ld bytes)\n", extension->buffer_len);
-			break;
-		case comment:
-			printf("comment: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
-		}
-	} else {
-		if (extension->type == comment) {
-			printf("%s\n", extension->buffer);
-		}
-	}
+    if (all_flag) {
+        switch (extension->type) {
+        case plain_text:
+            printf("plain text: %s\n", extension->buffer);
+            break;
+        case application:
+            printf("application: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
+            break;
+        case application_subblock:
+            printf("application sub-block (%ld bytes)\n", extension->buffer_len);
+            break;
+        case comment:
+            printf("comment: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
+        }
+    } else {
+        if (extension->type == comment) {
+            printf("%s\n", extension->buffer);
+        }
+    }
 }
 
 int main(int argc, char **argv) {
 
-	struct cli_args *args = parse_args(argc, argv);
-	// returns null when handled e.g. help
-	if (args == NULL)
-		return 0;
-	
-	all_flag = args->all_flag;
+    struct cli_args *args = parse_args(argc, argv);
+    // returns null when handled e.g. help
+    if (args == NULL)
+        return 0;
+    
+    all_flag = args->all_flag;
 
-	if (args->dev_flag) {
-		printf("[dev] dev flag active\n");
-		if (args->verbose_flag) {
-			printf("[dev] verbose flag active\n");
-		}
-	}
-	
-	if (args->filename == NULL) {
-		fprintf(stderr, "[error] you never specified a file to open\n");
-		free(args);
-		return 1;
-	}
+    if (args->dev_flag) {
+        printf("[dev] dev flag active\n");
+        if (args->verbose_flag) {
+            printf("[dev] verbose flag active\n");
+        }
+    }
+    
+    if (args->filename == NULL) {
+        fprintf(stderr, "[error] you never specified a file to open\n");
+        free(args);
+        return 1;
+    }
 
-	FILE *fileptr;
-	long filelen;
-	
-	if (access(args->filename, F_OK) != 0) {
-		fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
-		free(args->filename);
-		free(args);
-		return 1;
-	}
-	
-	fileptr = fopen(args->filename, "rb");
+    FILE *fileptr;
+    long filelen;
+    
+    if (access(args->filename, F_OK) != 0) {
+        fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
+        free(args->filename);
+        free(args);
+        return 1;
+    }
+    
+    fileptr = fopen(args->filename, "rb");
 
-	enum read_gif_file_status gif_status = read_gif_file(fileptr, &extension_callback, NULL, args->verbose_flag, args->dev_flag);
-	if (gif_status > 0) {
-		switch (gif_status) {
-		case GIF_FILE_INVALID_SIG:
-			fprintf(stderr, "[error] file is an unsupported gif version\n");
-		}
-	} else {
-		if (args->dev_flag)
-			printf("[dev] finished reading image\n");
-	}
-	
-	fclose(fileptr);
-	if (args->filename != NULL)
-		free(args->filename);
-	free(args);
+    enum read_gif_file_status gif_status = read_gif_file(fileptr, &extension_callback, NULL, args->verbose_flag, args->dev_flag);
+    if (gif_status > 0) {
+        switch (gif_status) {
+        case GIF_FILE_INVALID_SIG:
+            fprintf(stderr, "[error] file is an unsupported gif version\n");
+        }
+    } else {
+        if (args->dev_flag)
+            printf("[dev] finished reading image\n");
+    }
+    
+    fclose(fileptr);
+    if (args->filename != NULL)
+        free(args->filename);
+    free(args);
 
-	return gif_status > 0 ? 1 : 0;
+    return gif_status > 0 ? 1 : 0;
 }
