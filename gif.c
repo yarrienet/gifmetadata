@@ -41,11 +41,15 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
     // while traversing thru the gif. 256 is enough since
     // the size as given by gif blocks can only be represented
     // in an unsigned char.
-    unsigned char *scratchpad = malloc(sizeof(unsigned char) * 256);
+    unsigned char *scratchpad = malloc(sizeof(unsigned char) * SCRATCHPAD_CHUNK_SIZE);
+    // allocated size of the buffer
+    size_t scratchpad_size = SCRATCHPAD_CHUNK_SIZE;
     // i is max index of written data in the buffer
     int scratchpad_i = 0;
-    // len is the max length to write into the buffer according
-    // to an unsigned char that prefixes data
+    // len is the expected length to write into the buffer according
+    // to an unsigned char that prefixes data in the GIF data, can
+    // be inaccurate for comments because some applications overloaded
+    // comment data
     int scratchpad_len = 0;
     
     // local screen descriptor
@@ -248,7 +252,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                 }
                 break;
             case known_extension:
-                // if the scratchpatch len is empty
+                            // if the scratchpatch len is empty
                 // then must be new block
                 if (scratchpad_len == 0) {
                     // if the new size of the block is
@@ -265,7 +269,22 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                     if (dev_flag)
                         printf("[dev] new extension block len: %d\n", scratchpad_len);
                 } else {
-                    if (scratchpad_i < scratchpad_len) {
+                    if (scratchpad_i < scratchpad_len || (local_extension_type == comment && buffer[i] != 0)) {
+                        // comments must be dealt differently and allowed to exceed previously defined lengths because applications
+                        // sometimes disregard their given size and overload strings beyond 255 bytes
+                        if (local_extension_type == comment && scratchpad_i + 1 >= scratchpad_size) {
+                            scratchpad_size += SCRATCHPAD_CHUNK_SIZE;
+                            if (scratchpad_size > SCRATCHPAD_CHUNK_SIZE * 10) {
+                                // don't go past 2560 bytes of reallocation
+                                free(extension_cb_info);
+                                free(scratchpad);
+                                return GIF_FILE_COMMENT_EXCEEDS_BOUNDS;
+                            }
+                            if (dev_flag)
+                                printf("[dev] reallocated scratchpad to a size of: %ld (* type sizeof)\n", scratchpad_size);
+                            scratchpad = realloc(scratchpad, sizeof(unsigned char) * scratchpad_size);
+                        }
+
                         scratchpad[scratchpad_i] = buffer[i];
                         scratchpad_i++;
                     } else {
@@ -274,12 +293,17 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                         if (extension_cb_info) {
                             extension_cb_info->type = local_extension_type;
                             extension_cb_info->buffer = scratchpad;
-                            extension_cb_info->buffer_len = scratchpad_len;
+                            if (local_extension_type == comment) {
+                                extension_cb_info->buffer_len = scratchpad_i;
+                            } else {
+                                extension_cb_info->buffer_len = scratchpad_len;
+                            }
                             extension_cb(extension_cb_info);
                         }
 
                         // for the next byte
                         if (local_extension_type == application || local_extension_type == application_subblock) {
+                            // subblocks always follow an application
                             local_extension_type = application_subblock;
                             scratchpad_i = 0;
                             scratchpad_len = buffer[i];
@@ -288,12 +312,10 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                                 state = searching;
                                 break;
                             }
-                        } else if (buffer[i] == 0) {
-                            // if null terminated then await next block
+                        } else {
                             state = searching;
                         }
                     }
-                    
                 }
                 break;
             case image_descriptor:

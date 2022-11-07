@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <math.h>
 
+#define SCRATCHPAD_CHUNK_SIZE 256
+
 // extension callbacks
 
 enum extension_type {
@@ -39,7 +41,8 @@ enum file_read_state {
 // error
 enum read_gif_file_status {
     GIF_FILE_SUCCESS,
-    GIF_FILE_INVALID_SIG
+    GIF_FILE_INVALID_SIG,
+    GIF_FILE_COMMENT_EXCEEDS_BOUNDS
 };
 
 enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void (*state_cb)(enum file_read_state),  int verbose_flag, int dev_flag);

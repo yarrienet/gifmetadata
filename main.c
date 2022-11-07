@@ -108,6 +108,8 @@ int main(int argc, char **argv) {
         switch (gif_status) {
         case GIF_FILE_INVALID_SIG:
             fprintf(stderr, "[error] file is an unsupported gif version\n");
+        case GIF_FILE_COMMENT_EXCEEDS_BOUNDS:
+            fprintf(stderr, "[error] file contains an invalid comment\n");
         }
     } else {
         if (args->dev_flag)
@@ -119,5 +121,5 @@ int main(int argc, char **argv) {
         free(args->filename);
     free(args);
 
-    return gif_status > 0 ? 1 : 0;
+    return gif_status;
 }
