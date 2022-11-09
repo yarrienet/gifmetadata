@@ -154,7 +154,7 @@ struct cli_args *cli_parse(int argc, char **argv) {
             if (args->filename == NULL)
                 args->filename = argv[x];
             else {
-                printf("[error] cannot provide more than one file\n");
+                fprintf(stderr, "[error] more than one file provided\n");
                 free(args);
                 return NULL;
             }
