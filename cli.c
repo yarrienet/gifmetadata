@@ -1,17 +1,5 @@
 #include "cli.h"
 
-// custom strncpy implementation to avoid
-// including string.h, be warned the
-// less than/greater than functionality
-// isn't implemented
-char strncpy_(const char *s1, const char *s2, size_t n) {
-    for (int x = 0; x < n; x++) {
-        if (s1[x] != s2[x])
-            return 1;
-    }
-    return 0;
-}
-
 void print_help() {
     printf("gifmetadata\n");
     printf("version 0.0.1\n\n");
@@ -56,126 +44,128 @@ void print_help() {
     printf("    -d / --dev       Display inner program workings intended for developers\n");
 }
 
-const char arg_all[] = "all";
-const char arg_verbose[] = "verbose";
-const char arg_dev[] = "dev";
-const char arg_help[] = "help";
+struct defined_arg {
+    char *name;
+    size_t name_len;
+    char short_name;
+    int *flag;
+};
 
-struct cli_args *parse_args(int argc, char **argv) {
-    // reading argv code
-    //
-    // cool note...apparently int is faster than
-    // char even tho its a bigger size bcs
-    // cpus are designed to work with ints
-    // https://stackoverflow.com/questions/9521140/char-or-int-for-boolean-value-in-c
-    
+struct defined_arg defined_args[4];
+
+struct cli_args *cli_parse(int argc, char **argv) {
+
     struct cli_args *args = malloc(sizeof(struct cli_args));
     args->all_flag = 0;
     args->verbose_flag = 0;
     args->dev_flag = 0;
+    args->help_flag = 0;
     args->filename = NULL;
 
+    // setting up defined args
+
+    struct defined_arg *all_arg = &defined_args[0];
+    all_arg->name = "all";
+    all_arg->name_len = 3;
+    all_arg->short_name = 'a';
+    all_arg->flag = &args->all_flag;
+
+    struct defined_arg *verbose_arg = &defined_args[1];
+    verbose_arg->name = "verbose";
+    verbose_arg->name_len = 7;
+    verbose_arg->short_name = 'v';
+    verbose_arg->flag = &args->verbose_flag;
+
+    struct defined_arg *dev_arg = &defined_args[2];
+    dev_arg->name = "dev";
+    dev_arg->name_len = 3;
+    dev_arg->short_name = 'd';
+    dev_arg->flag = &args->dev_flag;
+
+    struct defined_arg *help_arg = &defined_args[3];
+    help_arg->name = "help";
+    help_arg->name_len = 4;
+    help_arg->short_name = 'h';
+    help_arg->flag = &args->help_flag;
+
+    // start parsing
+
     for (int x = 1; x < argc; x++) {
-        int y = 0;
-        if (argv[x][0] == '-') {
-            if (argv[x][1] == '-') { 
-                // calculate the length of the
-                // long arg
-                y = 2;
-                while (argv[x][y] != 0)
-                    y++;
-                int arg_len = y - 2 + 1;
-                
-                if (arg_len < 1)
+        size_t argv_len = strnlen(argv[x], 256);
+        
+        int dash_state = 0;
+        int double_dash_state = 0;
+        for (int y = 0; y < argv_len; y++) {
+            char argv_c = argv[x][y];
+            if (y == 0 && argv_c == '-' && argv_len > 1) {
+                dash_state = 1;
+            } else if (dash_state) {
+                if (y == 1 && argv_c == '-') {
+                    dash_state = 0;
+                    double_dash_state = 1;
+                } else {
+                    int z = 0;
+                    int flag_match = 0;
+                    for (z = 0; z < sizeof(defined_args) / sizeof(struct defined_arg); z++) {
+                        struct defined_arg arg = defined_args[z];
+                        if (arg.short_name == argv_c) {
+                            flag_match = 1;
+                            *arg.flag = 1;
+                            break;
+                        }
+                    }
+                    if (!flag_match) {
+                        fprintf(stderr, "[error] unknown flag: %c\n", argv_c);
+                        free(args);
+                        return NULL;
+                    }
+                }
+            } else if (double_dash_state) {
+                if (argv_c == 0)
                     break;
-                
-                // copy the long arg into a buffer
-                char *long_arg = malloc(sizeof(char) * arg_len);
-                for (y = 2; y < arg_len + 2; y++)
-                    long_arg[y - 2] = argv[x][y];
-                
-                // check if buffer matches the known
-                // buffers
-                
-                // dirty self strncmp... if i add more
-                // args ill just make a function
-                if (arg_len == sizeof(arg_all)) {
-                    if (strncpy_(long_arg, (const char*)&arg_all, arg_len) == 0) {
-                        args->all_flag = 1;
-                        free(long_arg);
-                        continue;
-                    }
-                } else if (arg_len == sizeof(arg_verbose)) {
-                    if (strncpy_(long_arg, (const char*)&arg_verbose, arg_len) == 0) {
-                        args->verbose_flag = 1;
-                        free(long_arg);
-                        continue;
-                    }
-                } else if (arg_len == sizeof(arg_dev)) {
-                    if (strncpy_(long_arg, (const char*)&arg_dev, arg_len) == 0) {
-                        args->dev_flag = 1;
-                        free(long_arg);
-                        continue;
-                    }
-                } else if (arg_len == sizeof(arg_help)) {
-                    if (strncpy_(long_arg, (const char*)&arg_help, arg_len) == 0) {
-                        free(long_arg);
-                        if (args->filename != NULL)
-                            free(args->filename);
-                        print_help();
-                        return NULL;
-                    }
-                }
-                
-                fprintf(stderr, "[error] unknown flag: %s\n", long_arg);
-                if (args->filename != NULL)
-                    free(args->filename);
-                free(long_arg);
-                return NULL;
             } else {
-                y = 1;
-                while (argv[x][y] != '\0') {
-                    switch (argv[x][y]) {
-                    case 'a':
-                        args->all_flag = 1;
+                break;
+            }
+        }
+        if (double_dash_state) {
+            int flag_match = 0;
+            char *arg = argv[x];
+            size_t arg_len = strnlen(arg, 256);
+
+            if (arg_len > 2) {
+                arg += 2;
+                arg_len -= 2;
+
+                for (int z = 0; z < sizeof(defined_args) / sizeof(struct defined_arg); z++) {
+                    struct defined_arg defined_arg = defined_args[z];
+                    if (defined_arg.name_len == arg_len && strncmp(defined_arg.name, arg, defined_arg.name_len) == 0) {
+                        flag_match = 1;
+                        *defined_arg.flag = 1;
                         break;
-                    case 'v':
-                        args->verbose_flag = 1;
-                        break;
-                    case 'd':
-                        args->dev_flag = 1;
-                        break;
-                    case 'h':
-                        if (args->filename != NULL)
-                            free(args->filename);
-                        print_help();
-                        return NULL;
-                    default:
-                        fprintf(stderr, "[error] unknown flag: %c\n", argv[x][y]);
-                        if (args->filename != NULL)
-                            free(args->filename);
-                        return NULL;
                     }
-                    y++;
                 }
             }
-        } else {
-            if (args->filename != NULL) {
-                fprintf(stderr, "[error] specified more than one file, i can only read one\n");
-                free(args->filename);
+            if (!flag_match) {
+                fprintf(stderr, "[error] unknown flag: %s\n", argv[x]+2);
+                free(args);
                 return NULL;
             }
-            // calculate filename len
-            y = 0;
-            while (argv[x][y] != 0)
-                y++;
-            // allocate filename buffer
-            int filename_len = y + 1;
-            args->filename = malloc(sizeof(char) * filename_len);
-            // copy filename buffer
-            for (y = 0; y < filename_len; y++)
-                args->filename[y] = argv[x][y];
+        } else if (!dash_state && !double_dash_state) {
+            if (args->filename == NULL)
+                args->filename = argv[x];
+            else {
+                printf("[error] cannot provide more than one file\n");
+                free(args);
+                return NULL;
+            }
         }
     }
+
+    if (args->help_flag) {
+        print_help();
+        free(args);
+        return NULL;
+    }
+
     return args;
 }
