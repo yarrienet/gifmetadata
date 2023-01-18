@@ -6,7 +6,7 @@ CFLAGS=-Wall
 #CFLAGS=-fsanitize=address -Wall
 LIBS=-lm
 
-OBJS = main.o cli.o gif.o
+OBJS = main.o cli.o gif.o debug.o
 
 all: $(TARGET)
 
