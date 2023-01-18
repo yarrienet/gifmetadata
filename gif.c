@@ -197,8 +197,11 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                     state = trailer;
                     break;
                 default:
-                    if (dev_flag)
+                    if (dev_flag) {
                         printf("[dev] unknown byte: (0x%x)...\n", buffer[i]);
+                        // void printf_offset(char *str, FILE file, size_t file_buffer_size, int offset);
+                        printf_offset("unknown byte", file, 256, i);
+                    }
                     break;
                 }
                 break;

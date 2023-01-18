@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <math.h>
 
+// temp for debugging
+#include "debug.h"
+
 #define SCRATCHPAD_CHUNK_SIZE 256
 
 // extension callbacks
