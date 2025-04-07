@@ -1,7 +1,6 @@
 #include "cli.h"
 
-#define FILENAME_MAX_LEN 512
-#define ARGV_MAX_LEN 512
+#define ARG_MAX_LEN 512
 
 void print_help() {
     printf("gifmetadata\n");
@@ -46,173 +45,171 @@ void print_help() {
     printf("    -d / --dev       Display inner program workings intended for developers\n");
 }
 
-struct defined_arg {
-    char *name;
-    size_t name_len;
-    char short_name;
-    int *flag;
-};
+void cli_free_user_args(cli_user_args *a) {
+    // free filename field
+    if (a != NULL && a->filename != NULL)
+        free(a->filename);
 
-struct defined_arg defined_args[4];
-
-void free_cli_args(struct cli_args *args) {
-    if (args->filename != NULL) {
-        free(args->filename);
-        args->filename = NULL;
-    }
-    if (args != NULL)
-        free(args);
+    // free whole struct
+    if (a != NULL)
+        free(a);
 }
 
-struct cli_args *cli_parse(int argc, char **argv) {
+/**
+ * @brief Parse a short flag and update a provided @ref cli_user_args structure.
+ *
+ * The function parses a provided short flag and updates a provided
+ * @ref cli_user_args structure by updating the field indicating the presence
+ * of the known flag. If a flag wasn't recognized then a 0 is returned and the
+ * structure is not modified.
+ *
+ * @param flag A single character short flag to be parsed.
+ *
+ * @param a The structure to be modified upon flag parsing.
+ *
+ * @return If a flag was recognized and the structure was updated then a 1
+ *         integer value is returned. If a flag was not recognized then a 0
+ *         integer value is returned and the structure is not modified.
+ */
+int parse_short_flag(char flag, cli_user_args *a) {
+    switch (flag) {
+    case 'h':
+        a->help_flag = 1;
+        return 1;
+    case 'a':
+        a->all_flag = 1;
+        return 1;
+    case 'v':
+        a->verbose_flag = 1;
+        return 1;
+    case 'd':
+        a->dev_flag = 1;
+        return 1;
+    default:
+        return 0;
+    }
+}
 
-    struct cli_args *args = malloc(sizeof(struct cli_args));
-    if (args == NULL) {
-        fprintf(stderr, "[error] failed to alloc cli_args\n");
+/**
+ * @brief Parse a long flag and update a provided @ref cli_user_args structure.
+ *
+ * The function parses a provided long flag and updates a provided
+ * @ref cli_user_args structure by updating the field indicating the presence
+ * of the known flag. If a flag wasn't recognized then a 0 is returned and the
+ * structure is not modified.
+ *
+ * @param flag Buffer containing the long flag.
+ * 
+ * @param flag_len Length of characters within the flag buffer.
+ *
+ * @param a The structure to be modified upon flag parsing.
+ *
+ * @return If a flag was recognized and the structure was updated then a 1
+ *         integer value is returned. If a flag was not recognized then a 0
+ *         integer value is returned and the structure is not modified.
+ */
+int parse_long_flag(const char *flag, size_t flag_len, cli_user_args *a) {
+    if (flag_len == 4 && strncmp(flag, "help", flag_len) == 0) {
+        a->help_flag = 1;
+        return 1; 
+    } else if (flag_len == 3 && strncmp(flag, "all", flag_len) == 0) {
+        a->all_flag = 1;
+        return 1;
+    } else if (flag_len == 7 && strncmp(flag, "verbose", flag_len) == 0) {
+        a->verbose_flag = 1;
+        return 1;
+    } else if (flag_len == 3 && strncmp(flag, "dev", flag_len) == 0) {
+        a->dev_flag = 1;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+cli_user_args *cli_parse(int argc, char **argv) {
+
+    cli_user_args *parsed_args = malloc(sizeof(cli_user_args));
+    if (parsed_args == NULL) {
+        fprintf(stderr, "[error] failed to alloc parsed args\n");
         return NULL;
     }
-    args->all_flag = 0;
-    args->verbose_flag = 0;
-    args->dev_flag = 0;
-    args->help_flag = 0;
-    args->filename = NULL;
 
-    // setting up defined args
-
-    struct defined_arg *all_arg = &defined_args[0];
-    all_arg->name = "all";
-    all_arg->name_len = 3;
-    all_arg->short_name = 'a';
-    all_arg->flag = &args->all_flag;
-
-    struct defined_arg *verbose_arg = &defined_args[1];
-    verbose_arg->name = "verbose";
-    verbose_arg->name_len = 7;
-    verbose_arg->short_name = 'v';
-    verbose_arg->flag = &args->verbose_flag;
-
-    struct defined_arg *dev_arg = &defined_args[2];
-    dev_arg->name = "dev";
-    dev_arg->name_len = 3;
-    dev_arg->short_name = 'd';
-    dev_arg->flag = &args->dev_flag;
-
-    struct defined_arg *help_arg = &defined_args[3];
-    help_arg->name = "help";
-    help_arg->name_len = 4;
-    help_arg->short_name = 'h';
-    help_arg->flag = &args->help_flag;
-
-    // start parsing
-
-    for (int x = 1; x < argc; x++) {
-        if (argv[x] == NULL) {
-            fprintf(stderr, "[error] missing arg at index %d\n", x);
-            free_cli_args(args);
+    // loop each command line arguments
+    for (int i = 1; i < argc; i++) {
+        char *arg = argv[i];
+        // unlikely event of a null argv member
+        if (arg == NULL) {
+            fprintf(stderr, "[error] missing arg at index %d\n", i);
+            cli_free_user_args(parsed_args);
             return NULL;
         }
-        size_t argv_len = strnlen(argv[x], 256);
-        if (argv_len == ARGV_MAX_LEN) {
-            fprintf(stderr, "[error] argv exceeds max character len %d\n", ARGV_MAX_LEN);
-            free_cli_args(args);
+        // determine len of arg for looping character-by-character
+        size_t arg_len = strnlen(arg, ARG_MAX_LEN + 1);
+        if (arg_len == ARG_MAX_LEN + 1) {
+            fprintf(stderr, "[error] arg exceeds max character len %d\n",
+                ARG_MAX_LEN);
+            cli_free_user_args(parsed_args);
             return NULL;
         }
         
-        int dash_state = 0;
-        int double_dash_state = 0;
-        for (int y = 0; y < argv_len; y++) {
-            char argv_c = argv[x][y];
-            if (y == 0 && argv_c == '-' && argv_len > 1) {
-                dash_state = 1;
-            } else if (dash_state) {
-                if (y == 1 && argv_c == '-') {
-                    dash_state = 0;
-                    double_dash_state = 1;
-                } else {
-                    int z = 0;
-                    int flag_match = 0;
-                    for (z = 0; z < sizeof(defined_args) / sizeof(struct defined_arg); z++) {
-                        struct defined_arg arg = defined_args[z];
-                        if (arg.short_name == argv_c) {
-                            flag_match = 1;
-                            *arg.flag = 1;
-                            break;
-                        }
-                    }
-                    if (!flag_match) {
-                        fprintf(stderr, "[error] unknown flag: %c\n", argv_c);
-                        free_cli_args(args);
-                        return NULL;
-                    }
-                }
-            } else if (double_dash_state) {
-                if (argv_c == 0)
-                    break;
-            } else {
+        // determine the number of preceding dashes and break when encountering
+        // no more
+        int dash_count = 0;
+        for (int arg_i = 0; arg_i < arg_len; arg_i++) {
+            if (arg[arg_i] == '-')
+                dash_count++;
+            else
                 break;
-            }
         }
-        if (double_dash_state) {
-            int flag_match = 0;
-            char *arg = argv[x];
-            size_t arg_len = strnlen(arg, 256);
 
-            if (arg_len > 2) {
-                arg += 2;
-                arg_len -= 2;
-
-                for (int z = 0; z < sizeof(defined_args) / sizeof(struct defined_arg); z++) {
-                    struct defined_arg defined_arg = defined_args[z];
-                    if (defined_arg.name_len == arg_len && strncmp(defined_arg.name, arg, defined_arg.name_len) == 0) {
-                        flag_match = 1;
-                        *defined_arg.flag = 1;
-                        break;
-                    }
-                }
-            }
-            if (!flag_match) {
-                fprintf(stderr, "[error] unknown flag: %s\n", argv[x]+2);
-                free_cli_args(args);
-                return NULL;
-            }
-        } else if (!dash_state && !double_dash_state) {
-            char *arg = argv[x];
-            if (arg != NULL) {
-                fprintf(stderr, "[error] missing filename arg\n");
-                free_cli_args(args);
-                return NULL;
-            }
-
-            if (args->filename == NULL) {
-                size_t filename_len = strnlen(arg, FILENAME_MAX_LEN);
-                if (filename_len == FILENAME_MAX_LEN) {
-                    fprintf(stderr, "[error] filename length exceeds %d\n", FILENAME_MAX_LEN);
-                    free_cli_args(args);
+        if (dash_count == 1 && arg_len > 1) {
+            // parse short flag and update struct
+            for (int arg_i = 1; arg_i < arg_len; arg_i++) {
+                char flag_c = arg[arg_i];
+                if (parse_short_flag(flag_c, parsed_args) != 1) {
+                    fprintf(stderr, "[error] invalid flag '%c'\n", flag_c);
+                    cli_free_user_args(parsed_args);
                     return NULL;
                 }
-                size_t filename_size = sizeof(char) * filename_len + 1;
-                args->filename = malloc(filename_size);
-                if (args->filename == NULL) {
-                    fprintf(stderr, "[error] failed to alloc filename\n");
-                    free_cli_args(args);
-                    return NULL;
-                }
-                strncpy(args->filename, arg, filename_size - 1);
-                args->filename[filename_size-1] = '\0';
-                args->filename_size = filename_size;
-            } else {
+            }
+        } else if (dash_count == 2 && arg_len > 2) {
+            // is a long name double dash flag (e.g. --verbose)
+            const char *flag_s = arg+2;
+            if (parse_long_flag(flag_s, arg_len-2, parsed_args) != 1) {
+                fprintf(stderr, "[error] invalid flag '%s'\n", flag_s);
+                cli_free_user_args(parsed_args);
+                return NULL;
+            }
+        } else {
+            // filename
+
+            // no more one than file can be provided
+            if (parsed_args->filename != NULL) {
                 fprintf(stderr, "[error] more than one file provided\n");
-                free_cli_args(args);
+                cli_free_user_args(parsed_args);
                 return NULL;
             }
+            // copy the filename to its own buffer
+            size_t filename_size = sizeof(char) * arg_len + 1;
+            char *filename = malloc(filename_size);
+            if (filename == NULL) {
+                fprintf(stderr, "[error] failed to alloc filename\n");
+                cli_free_user_args(parsed_args);
+                return NULL;
+            }
+            strncpy(filename, arg, filename_size);
+            filename[filename_size-1] = '\0';
+            parsed_args->filename = filename;
+            parsed_args->filename_size = filename_size;
         }
     }
 
-    if (args->help_flag) {
+    if (parsed_args->help_flag) {
         print_help();
-        free_cli_args(args);
+        cli_free_user_args(parsed_args);
         return NULL;
     }
 
-    return args;
+    return parsed_args;
 }
+

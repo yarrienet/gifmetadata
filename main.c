@@ -70,7 +70,7 @@ void extension_callback(struct extension_info *extension) {
 
 int main(int argc, char **argv) {
 
-    struct cli_args *args = cli_parse(argc, argv);
+    cli_user_args *args = cli_parse(argc, argv);
     // returns null when handled e.g. help
     if (args == NULL)
         return 0;
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
     
     if (args->filename == NULL) {
         fprintf(stderr, "[error] you never specified a file to open\n");
-        free_cli_args(args);
+        cli_free_user_args(args);
         return 1;
     }
 
@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
     
     if (access(args->filename, F_OK) != 0) {
         fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
-        free_cli_args(args);
+        cli_free_user_args(args);
         return 1;
     }
     
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
     }
     
     fclose(fileptr);
-    free_cli_args(args);
+    cli_free_user_args(args);
 
     return gif_status;
 }
