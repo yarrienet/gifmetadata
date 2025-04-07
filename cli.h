@@ -11,8 +11,10 @@ struct cli_args {
     int dev_flag;
     int help_flag;
     char *filename;
+    size_t filename_size;
 };
 
+void free_cli_args(struct cli_args *args);
 struct cli_args *cli_parse(int argc, char **argv);
 
 #endif
