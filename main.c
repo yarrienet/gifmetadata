@@ -24,7 +24,6 @@
 // version 0.0.1
 //
 // Harry Stanton <harry@harrystanton.com>
-// https://github.com/harrego/gifmetadata
 //
 // designed to
 //     1. be fast
@@ -87,7 +86,7 @@ int main(int argc, char **argv) {
     
     if (args->filename == NULL) {
         fprintf(stderr, "[error] you never specified a file to open\n");
-        free(args);
+        free_cli_args(args);
         return 1;
     }
 
@@ -95,7 +94,7 @@ int main(int argc, char **argv) {
     
     if (access(args->filename, F_OK) != 0) {
         fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
-        free(args);
+        free_cli_args(args);
         return 1;
     }
     
@@ -120,7 +119,8 @@ int main(int argc, char **argv) {
     }
     
     fclose(fileptr);
-    free(args);
+    free_cli_args(args);
 
     return gif_status;
 }
+

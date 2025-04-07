@@ -1,11 +1,13 @@
 #include "cli.h"
 
+#define FILENAME_MAX_LEN 512
+#define ARGV_MAX_LEN 512
+
 void print_help() {
     printf("gifmetadata\n");
     printf("version 0.0.1\n\n");
 
-    printf("Harry Stanton <harry@harrystanton.com>\n");
-    printf("https://github.com/harrego/gifmetadata\n\n");
+    printf("Harry Stanton <harry@harrystanton.com>\n\n");
     
     printf("OVERVIEW:\n");
     printf("    GIFs contain 'comments' that were commonly used to attribute copyright\n");
@@ -53,9 +55,22 @@ struct defined_arg {
 
 struct defined_arg defined_args[4];
 
+void free_cli_args(struct cli_args *args) {
+    if (args->filename != NULL) {
+        free(args->filename);
+        args->filename = NULL;
+    }
+    if (args != NULL)
+        free(args);
+}
+
 struct cli_args *cli_parse(int argc, char **argv) {
 
     struct cli_args *args = malloc(sizeof(struct cli_args));
+    if (args == NULL) {
+        fprintf(stderr, "[error] failed to alloc cli_args\n");
+        return NULL;
+    }
     args->all_flag = 0;
     args->verbose_flag = 0;
     args->dev_flag = 0;
@@ -91,7 +106,17 @@ struct cli_args *cli_parse(int argc, char **argv) {
     // start parsing
 
     for (int x = 1; x < argc; x++) {
+        if (argv[x] == NULL) {
+            fprintf(stderr, "[error] missing arg at index %d\n", x);
+            free_cli_args(args);
+            return NULL;
+        }
         size_t argv_len = strnlen(argv[x], 256);
+        if (argv_len == ARGV_MAX_LEN) {
+            fprintf(stderr, "[error] argv exceeds max character len %d\n", ARGV_MAX_LEN);
+            free_cli_args(args);
+            return NULL;
+        }
         
         int dash_state = 0;
         int double_dash_state = 0;
@@ -116,7 +141,7 @@ struct cli_args *cli_parse(int argc, char **argv) {
                     }
                     if (!flag_match) {
                         fprintf(stderr, "[error] unknown flag: %c\n", argv_c);
-                        free(args);
+                        free_cli_args(args);
                         return NULL;
                     }
                 }
@@ -147,15 +172,37 @@ struct cli_args *cli_parse(int argc, char **argv) {
             }
             if (!flag_match) {
                 fprintf(stderr, "[error] unknown flag: %s\n", argv[x]+2);
-                free(args);
+                free_cli_args(args);
                 return NULL;
             }
         } else if (!dash_state && !double_dash_state) {
-            if (args->filename == NULL)
-                args->filename = argv[x];
-            else {
+            char *arg = argv[x];
+            if (arg != NULL) {
+                fprintf(stderr, "[error] missing filename arg\n");
+                free_cli_args(args);
+                return NULL;
+            }
+
+            if (args->filename == NULL) {
+                size_t filename_len = strnlen(arg, FILENAME_MAX_LEN);
+                if (filename_len == FILENAME_MAX_LEN) {
+                    fprintf(stderr, "[error] filename length exceeds %d\n", FILENAME_MAX_LEN);
+                    free_cli_args(args);
+                    return NULL;
+                }
+                size_t filename_size = sizeof(char) * filename_len + 1;
+                args->filename = malloc(filename_size);
+                if (args->filename == NULL) {
+                    fprintf(stderr, "[error] failed to alloc filename\n");
+                    free_cli_args(args);
+                    return NULL;
+                }
+                strncpy(args->filename, arg, filename_size - 1);
+                args->filename[filename_size-1] = '\0';
+                args->filename_size = filename_size;
+            } else {
                 fprintf(stderr, "[error] more than one file provided\n");
-                free(args);
+                free_cli_args(args);
                 return NULL;
             }
         }
@@ -163,7 +210,7 @@ struct cli_args *cli_parse(int argc, char **argv) {
 
     if (args->help_flag) {
         print_help();
-        free(args);
+        free_cli_args(args);
         return NULL;
     }
 
