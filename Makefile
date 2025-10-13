@@ -2,7 +2,7 @@ TARGET=gifmetadata
 CC=gcc
 VERSION=v0.0.1
 #SOURCE=.gitignore Makefile main.c README.md
-CFLAGS=-Wall
+CFLAGS=-std=gnu99 -Wall
 #CFLAGS=-fsanitize=address -Wall
 LIBS=-lm
 

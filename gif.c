@@ -26,8 +26,8 @@ enum lsd_state {
 };
 
 const char gif_sig[] = { 'G', 'I', 'F' };
-const char gif_87a[] = { '8', '7', 'a'};
-const char gif_89a[] = { '8', '9', 'a'};
+const char gif_87a[] = { '8', '7', 'a' };
+const char gif_89a[] = { '8', '9', 'a' };
 
 enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void (*state_cb)(enum file_read_state), int verbose_flag, int dev_flag) {
     fseek(file, 0, SEEK_END);
@@ -51,6 +51,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
     enum file_read_state state = header;
     unsigned char buffer[256];
     
+    int color_table_size = 0;
     int color_table_len = 0;
     
     // scratchpad is a buffer used for misc reading/writing
@@ -71,6 +72,10 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
     // local screen descriptor
     enum lsd_state local_lsd_state;
     enum extension_type local_extension_type;
+
+    int16_t result;
+    int global_color_table_flag;
+    int color_resolution;
 
     int bytes_to_read;
 
@@ -95,7 +100,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                 }
             }
 
-            char unsupported_version = 0;
+            int unsupported_version = 0;
             for (i = 0; i < 3; i++) {
                 if (buffer[i+gif_sig_len] != gif_87a[i] && buffer[i+gif_sig_len] != gif_89a[i]) {
                     unsupported_version = 1;
@@ -135,7 +140,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                     scratchpad[scratchpad_i] = buffer[i];
                     scratchpad_i++;
                     if (scratchpad_i >= 2) {
-                        int result = scratchpad[0] + (scratchpad[1] << 8);
+                        result = scratchpad[0] | (scratchpad[1] << 8);
                         if (local_lsd_state == width) {
                             if (verbose_flag)
                                 printf("[verbose] canvas width: %d\n", result);
@@ -149,39 +154,43 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                         }
                     }
                     break;
-                case packed: {
-                    int color_resolution = ((buffer[i] & 0b1000000) >> 4) + ((buffer[i] & 0b100000) >> 4) + ((buffer[i] & 0b10000) >> 4);
-                    color_table_len = 3 * pow(2, color_resolution+1);
-                    
+                case packed:
                     if (dev_flag)
-                        printf("[dev] color depth is: %d, len is: %d\n", color_resolution, color_table_len);
-                    if ((buffer[i] & 0b10000000) == 0b10000000) {
-                        // global color table
+                        printf("[dev] packed byte: 0x%x\n", buffer[i]); 
+                    global_color_table_flag = buffer[i] >> 7 & 1;
+
+                    if (global_color_table_flag) {
                         if (dev_flag)
                             printf("[dev] has a global color table\n");
                         
-                        int color_table_size = (buffer[i] & 0b100) + (buffer[i] & 0b10) + (buffer[i] & 0b1);
+                        color_resolution = (buffer[i] >> 4) & 0b111;
+                        
+                        if (dev_flag)
+                            printf("[dev] color resolution: %d\n", color_resolution);
+
+                        color_table_size = buffer[i] & 0b111;
                         color_table_len = 3 * pow(2, color_table_size+1);
                         if (dev_flag)
-                            printf("[dev] color table size: %d, len: %d\n", color_table_size, color_table_len);
+                            printf("[dev] color table size: %d, color table len: %d\n",
+                                color_table_size, color_table_len);
                         
-                        
-                        // use the scratchpad index as color table
-                        // index
+                        // use the scratchpad index as color table index
                         scratchpad_i = 0;
                         state = global_color_table;
                     } else {
+                        if (dev_flag)
+                            printf("[dev] does not have a global color table\n");
                         state = searching;
                     }
                     
                     break;
-                    }
                 default:
                     break;
                 }
                 
                 break;
             case global_color_table:
+                // loop through the global color table, ignoring the contents
                 if (color_table_len < scratchpad_i) {
                     if (dev_flag)
                         printf("[dev] finished the glboal color table\n");
@@ -209,7 +218,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                     // if this were a real gif parser you would terminate here
                     // but i'm speculating that at least one gif
                     // has been made with comment data coming after
-                    // the trailer as a mistake or easter egg:)~~
+                    // the trailer as a mistake or easter egg
                     state = trailer;
                     break;
                 default:
@@ -309,7 +318,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                     } else {
                         scratchpad[scratchpad_i] = '\0';
                         
-                        if (extension_cb_info) {
+                        if (extension_cb_info != NULL && extension_cb != NULL) {
                             extension_cb_info->type = local_extension_type;
                             extension_cb_info->buffer = scratchpad;
                             if (local_extension_type == comment) {
@@ -320,9 +329,9 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                             extension_cb(extension_cb_info);
                         }
 
-                        // for the next byte
+                        // if the next extension type is an application then
+                        // optional sub blocks can follow
                         if (local_extension_type == application || local_extension_type == application_subblock) {
-                            // subblocks always follow an application
                             local_extension_type = application_subblock;
                             scratchpad_i = 0;
                             scratchpad_len = buffer[i];
@@ -342,10 +351,10 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                 if (scratchpad_i >= 8) {
                     if (dev_flag)
                         printf("[dev] reached the end of an image descriptor, now parsing\n");
-                    if ((buffer[i] & 0b10000000) == 0b10000000) {
-                        // local color table
+                    // local color table check
+                    if (buffer[i] >> 7 == 1) {
                         scratchpad_i = 0;
-                        int local_color_table = (buffer[i] & 0b100) + (buffer[i] & 0b10) + (buffer[i] & 0b1);
+                        int local_color_table = buffer[i] & 0b111;
                         scratchpad_len = 3*pow(2,local_color_table+1);
                         state = local_color_table;
                         if (dev_flag)
@@ -361,6 +370,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                 }
                 break;
             case local_color_table:
+                // loop through the local color table, ignoring the contents
                 if (scratchpad_i >= scratchpad_len) {
                     scratchpad_i = 0;
                     scratchpad_len = 0;
@@ -372,6 +382,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                 }
                 break;
             case image_data:
+                // loop through the image data, ignoring the contents
                 if (scratchpad_len == 0) {
                     if (scratchpad_i == 1) {
                         scratchpad_i = 0;
@@ -382,7 +393,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
                     }
                 } else {
                     if (scratchpad_i >= scratchpad_len) {
-                        if (buffer[i] == 0x0) {
+                        if (buffer[i] == 0) {
                             if (dev_flag)
                                 printf("[dev] reached the end of image data blocks\n");
                             state = searching;
@@ -409,7 +420,7 @@ enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct 
 
         
     if (state != trailer)
-        fprintf(stderr, "[warning] file was incompatible and therefore gifpeek may have missed some data, recommended that you view this file in a hex editor to get more information\n");
+        fprintf(stderr, "[warning] file was incompatible and therefore some data may have been missed, view this file in a hex editor to get more information\n");
 
     return GIF_FILE_SUCCESS;
 }
