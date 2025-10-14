@@ -14,22 +14,38 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef GIFMETADATA_GIF_H
-#define GIFMETADATA_GIF_H
-
-#include <stdio.h>
-#include <stdlib.h>
-//#include <stdint.h>
-#include <math.h>
-
 #include "gifmetadata.h"
 
-// temp for debugging
-#include "debug.h"
+gifmetadata_state *gifmetadata_state_new() {
+    gifmetadata_state *state = malloc(sizeof(gifmetadata_state));
+    if (state == NULL)
+        return NULL;
 
+    // configure the scratchpad
 
+    // TODO include scratchpad size in header file
+    state->scratchpad = malloc(SCRATCHPAD_CHUNK_SIZE);
+    if (state->scratchpad == NULL) {
+        free(state);
+        return NULL;
+    }
+    state->scratchpad_size = SCRATCHPAD_CHUNK_SIZE;
+    state->scratchpad_i = 0;
+    state->scratchpad_len = 0;
 
-// enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void (*state_cb)(enum file_read_state),  int verbose_flag, int dev_flag);
+    // initial values
+    state->read_state = header;
+    state->color_table_size = 0;
+    state->color_table_len = 0;
+
+    return state;
+}
+
+void gifmetadata_state_free(gifmetadata_state *state) {
+    if (state->scratchpad != NULL)
+        free(state->scratchpad);
+    free(state);
+}
 
 int gifmetadata_parse_gif(
     gifmetadata_state *s,
@@ -37,4 +53,3 @@ int gifmetadata_parse_gif(
     size_t chunk_len,
     void (*extension_cb)(gifmetadata_extension_info*));
 
-#endif

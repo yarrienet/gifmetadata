@@ -6,7 +6,7 @@ CFLAGS=-std=gnu99 -Wall
 #CFLAGS=-fsanitize=address -Wall
 LIBS=-lm
 
-OBJS = main.o cli.o gif.o debug.o
+OBJS = main.o cli.o gif.o debug.o gifmetadata.o
 
 all: $(TARGET)
 

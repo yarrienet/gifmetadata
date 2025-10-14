@@ -25,11 +25,13 @@
 #include <math.h>
 
 #include "cli.h"
-#include "gif.h"
+#include "gifmetadata.h"
 
 int all_flag = 0;
 
-void extension_callback(struct extension_info *extension) {
+void extension_callback(gifmetadata_extension_info *extension) {
+    if (extension == NULL)
+        return;
     if (all_flag) {
         switch (extension->type) {
         case plain_text:
@@ -49,6 +51,7 @@ void extension_callback(struct extension_info *extension) {
             printf("%s\n", extension->buffer);
         }
     }
+    free(extension);
 }
 
 int main(int argc, char **argv) {
@@ -73,16 +76,51 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    FILE *fileptr;
-    
     if (access(args->filename, F_OK) != 0) {
         fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
         cli_free_user_args(args);
         return 1;
     }
     
-    fileptr = fopen(args->filename, "rb");
+    FILE *f;
+    f = fopen(args->filename, "rb");
+    if (!f) {
+        fprintf(stderr, "[error] failed to open file '%s'\n", args->filename);
+        return 1;
+    }
 
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fprintf(stderr, "[error] failed to seek file '%s'\n", args->filename);
+        fclose(f);
+        return 1;
+    }
+
+    size_t size = ftell(f);
+    if (size < 0) {
+        fprintf(stderr, "[error] failed to ftell file '%s'\n", args->filename);
+        fclose(f);
+        return 1;
+    }
+    rewind(f);
+
+    unsigned char *buf = malloc(size);
+    if (!buf) {
+        fprintf(stderr, "[error] failed to alloc file buffer\n");
+        fclose(f);
+        return 1;
+    }
+
+    fread(buf, 1, size, f);
+    fclose(f);
+
+    gifmetadata_state *gifmetadata_s = gifmetadata_state_new();
+    if (gifmetadata_s == NULL) {
+        fprintf(stderr, "[error] failed to alloc state\n");
+    }
+    int status = gifmetadata_parse_gif(gifmetadata_s, buf, size, &extension_callback);
+    printf("status: %d\n", status);
+
+    /*
     enum read_gif_file_status gif_status = read_gif_file(fileptr, &extension_callback, NULL, args->verbose_flag, args->dev_flag);
     if (gif_status > 0) {
         switch (gif_status) {
@@ -100,10 +138,11 @@ int main(int argc, char **argv) {
         if (args->dev_flag)
             printf("[dev] finished reading image\n");
     }
+    */
     
-    fclose(fileptr);
+    fclose(f);
     cli_free_user_args(args);
 
-    return gif_status;
+    return 0;
 }
 
