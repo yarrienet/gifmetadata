@@ -17,9 +17,7 @@
 #include "gif.h"
 
 
-const char gif_sig[] = { 'G', 'I', 'F' };
-const char gif_87a[] = { '8', '7', 'a' };
-const char gif_89a[] = { '8', '9', 'a' };
+const char gif_sig[] = { 'G', 'I', 'F', '8', 'x', 'a' };
 
 int gifmetadata_parse_gif(
     gifmetadata_state *s,
@@ -30,55 +28,26 @@ int gifmetadata_parse_gif(
     for (int i = 0; i < chunk_len; i++) {
         unsigned char byte = chunk[i];
         
-        // safe to assume that magic numbers fit in
-        // a full 256 chunk bcs its at the start of
-        // a file
         if (s->read_state == header) {
-
-            // TODO replace gif magic number check with chunked compatible
-            // version
-
-            /*
-            const size_t gif_sig_len = sizeof(gif_sig);
-            for (i = 0; i < gif_sig_len; i++) {
-                if (byte != gif_sig[i]) {
-                    free(scratchpad);
-                    free(extension_cb_info);
-                    return GIFMETADATA_INVALID_SIG;
-                }
-            }
-
-            int unsupported_version = 0;
-            for (i = 0; i < 3; i++) {
-                if (chunk[i+gif_sig_len] != gif_87a[i] && chunk[i+gif_sig_len] != gif_89a[i]) {
-                    unsupported_version = 1;
-                    break;
-                }
-            }
-            // pushing i past the sig (length of 6)
-            i = 6;
-            
-            if (verbo) {
-                if (buffer[3] == '8') {
-                    if (buffer[4] == '7') {
-                        printf("[verbose] gif is version 87a\n");
-                    } else if (buffer[4] == '9') {
-                        printf("[verbose] gif is version 89a\n");
-                    }
-                }
-            }
-            if (unsupported_version) {
-                fprintf(stderr, "[warning] gif is an unsupported version: ");
-                for (i = sizeof(gif_sig); i < 6; i++) {
-                    fprintf(stderr, "%c", byte);
-                }
-                fprintf(stderr, "\n");
-            }
-            */
-
             // loading header bytes into scratchpad until complete
             s->scratchpad[s->scratchpad_i++] = byte;
             if (s->scratchpad_i > 6) {
+
+                unsigned char sig_byte;
+                for (int j = 0; j < 6; j++) {
+                    sig_byte = s->scratchpad[j];
+                    if (j == 4) {
+                        if (sig_byte == 0x37)
+                            s->gif_version = gif87a;
+                        else if (sig_byte == 0x39)
+                            s->gif_version = gif89a;
+                        else
+                            return GIFMETADATA_INVALID_SIG;
+                    } else if (sig_byte != gif_sig[j]) {
+                        return GIFMETADATA_INVALID_SIG; 
+                    }
+                }
+
                 s->scratchpad_i = 0;
                 s->read_state = logical_screen_descriptor;
                 s->local_lsd_state = 0;

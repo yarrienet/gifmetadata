@@ -24,13 +24,6 @@
 
 #include "gifmetadata.h"
 
-// temp for debugging
-#include "debug.h"
-
-
-
-// enum read_gif_file_status read_gif_file(FILE *file, void (*extension_cb)(struct extension_info*), void (*state_cb)(enum file_read_state),  int verbose_flag, int dev_flag);
-
 int gifmetadata_parse_gif(
     gifmetadata_state *s,
     unsigned char *chunk,

@@ -155,6 +155,18 @@ int main(int argc, char **argv) {
     }
 
     if (verbose_flag) {
+        printf("[verbose] gif version ");
+        switch (gifmetadata_s->gif_version) {
+        case gif87a:
+            printf("87a\n");
+            break;
+        case gif89a:
+            printf("89a\n");
+            break;
+        default:
+            printf("unknown (%d)\n", gifmetadata_s->gif_version);
+        }
+
         printf("[verbose] canvas width: %d height: %d\n",
             gifmetadata_s->canvas_width,
             gifmetadata_s->canvas_height);

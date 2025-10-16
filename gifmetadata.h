@@ -30,7 +30,12 @@
 
 #define SCRATCHPAD_CHUNK_SIZE 256
 
-// TODO prefix
+enum gifmetadata_gif_version {
+    gif87a,
+    gif89a
+};
+
+// TODO prefix all, private some
 
 // lsd = local screen descriptor
 enum lsd_state {
@@ -101,6 +106,8 @@ typedef struct gifmetadata_state {
     // info
     uint16_t canvas_width;
     uint16_t canvas_height;
+
+    enum gifmetadata_gif_version gif_version;
 } gifmetadata_state;
 
 typedef struct gifmetadata_extension_info {
