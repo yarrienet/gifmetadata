@@ -27,7 +27,12 @@
 #include "cli.h"
 #include "gifmetadata.h"
 
+#define EXIT_IO_ERROR 2
+#define EXIT_MEM_ERROR 3
+#define EXIT_PARSE_ERROR 4
+
 int all_flag = 0;
+int verbose_flag = 0;
 
 void extension_callback(gifmetadata_extension_info *extension) {
     if (extension == NULL)
@@ -62,6 +67,7 @@ int main(int argc, char **argv) {
         return 0;
     
     all_flag = args->all_flag;
+    verbose_flag = args->verbose_flag;
 
     if (args->dev_flag) {
         printf("[dev] dev flag active\n");
@@ -73,41 +79,47 @@ int main(int argc, char **argv) {
     if (args->filename == NULL) {
         fprintf(stderr, "[error] you never specified a file to open\n");
         cli_free_user_args(args);
-        return 1;
+        return EXIT_IO_ERROR;
     }
 
     if (access(args->filename, F_OK) != 0) {
         fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
         cli_free_user_args(args);
-        return 1;
+        return EXIT_IO_ERROR;
     }
     
     FILE *f;
     f = fopen(args->filename, "rb");
     if (!f) {
         fprintf(stderr, "[error] failed to open file '%s'\n", args->filename);
-        return 1;
+        cli_free_user_args(args);
+        return EXIT_IO_ERROR;
     }
+    cli_free_user_args(args);
 
     if (fseek(f, 0, SEEK_END) != 0) {
         fprintf(stderr, "[error] failed to seek file '%s'\n", args->filename);
         fclose(f);
-        return 1;
+        return EXIT_IO_ERROR;
     }
 
     size_t size = ftell(f);
     if (size < 0) {
         fprintf(stderr, "[error] failed to ftell file '%s'\n", args->filename);
         fclose(f);
-        return 1;
+        return EXIT_IO_ERROR;
     }
+
+    if (verbose_flag)
+        printf("[verbose] file size: %ld bytes\n", size);
+
     rewind(f);
 
     unsigned char *buf = malloc(size);
     if (!buf) {
         fprintf(stderr, "[error] failed to alloc file buffer\n");
         fclose(f);
-        return 1;
+        return EXIT_IO_ERROR;
     }
 
     fread(buf, 1, size, f);
@@ -116,32 +128,37 @@ int main(int argc, char **argv) {
     gifmetadata_state *gifmetadata_s = gifmetadata_state_new();
     if (gifmetadata_s == NULL) {
         fprintf(stderr, "[error] failed to alloc state\n");
+        return EXIT_MEM_ERROR;
     }
     int status = gifmetadata_parse_gif(gifmetadata_s, buf, size, &extension_callback);
-    printf("status: %d\n", status);
 
-    /*
-    enum read_gif_file_status gif_status = read_gif_file(fileptr, &extension_callback, NULL, args->verbose_flag, args->dev_flag);
-    if (gif_status > 0) {
-        switch (gif_status) {
-        case GIF_FILE_INVALID_SIG:
-            fprintf(stderr, "[error] file is an unsupported gif version\n");
-            break;
-        case GIF_FILE_COMMENT_EXCEEDS_BOUNDS:
-            fprintf(stderr, "[error] file contains an invalid comment\n");
-            break;
-        default:
-            fprintf(stderr, "[error] unhandled gif state\n");
-            break;
-        }
-    } else {
-        if (args->dev_flag)
-            printf("[dev] finished reading image\n");
+    switch (status) {
+    case GIFMETADATA_SUCCESS:
+        break;
+    case GIFMETADATA_INVALID_SIG:
+        fprintf(stderr, "[error] file is an unsupported gif version\n");
+        return EXIT_PARSE_ERROR;
+    case GIFMETADATA_COMMENT_EXCEEDS_BOUNDS:
+        // value correct as of v0.0.3
+        fprintf(stderr, "[error] file contains a comment that exceeds 2560 characters\n");
+        return EXIT_PARSE_ERROR;
+    case GIFMETADATA_ALLOC_FAILED:
+        fprintf(stderr, "[error] failed to allocate memory\n");
+        return EXIT_MEM_ERROR;
+    case GIFMETADATA_UNEXPECTED_EOF:
+        // non-fatal status code
+        fprintf(stderr, "[warning] unexpected eof\n");
+        break;
+    default:
+        fprintf(stderr, "[error] unhandled gif state\n");
+        return 1;
     }
-    */
-    
-    fclose(f);
-    cli_free_user_args(args);
+
+    if (verbose_flag) {
+        printf("[verbose] canvas width: %d height: %d\n",
+            gifmetadata_s->canvas_width,
+            gifmetadata_s->canvas_height);
+    }
 
     return 0;
 }

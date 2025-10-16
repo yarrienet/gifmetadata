@@ -37,6 +37,11 @@ gifmetadata_state *gifmetadata_state_new() {
     state->read_state = header;
     state->color_table_size = 0;
     state->color_table_len = 0;
+    state->color_resolution = -1;
+    state->global_color_table_flag = -1;
+
+    state->canvas_width = -1;
+    state->canvas_height = -1;
 
     return state;
 }

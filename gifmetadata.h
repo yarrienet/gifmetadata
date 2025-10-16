@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 // error
 #define GIFMETADATA_SUCCESS 0 
@@ -94,11 +95,12 @@ typedef struct gifmetadata_state {
     enum lsd_state local_lsd_state;
     enum extension_type local_extension_type;
 
-    // TODO import stdint
-    int16_t result;
     int global_color_table_flag;
     int color_resolution;
 
+    // info
+    uint16_t canvas_width;
+    uint16_t canvas_height;
 } gifmetadata_state;
 
 typedef struct gifmetadata_extension_info {
