@@ -24,10 +24,13 @@
 
 #include "gifmetadata.h"
 
+/*
 int gifmetadata_parse_gif(
     gifmetadata_state *s,
     unsigned char *chunk,
     size_t chunk_len,
-    void (*extension_cb)(gifmetadata_extension_info*));
+    void (*extension_cb)(gifmetadata_extension_info*),
+    void (*state_cb)(enum gifmetadata_read_state));
+*/
 
 #endif

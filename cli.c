@@ -19,10 +19,8 @@
 #define ARG_MAX_LEN 512
 
 void print_help() {
-    printf("gifmetadata\n");
-    printf("version 0.0.2\n\n");
-
-    printf("Harry Stanton <harry@harrystanton.com>\n\n");
+    printf("USAGE:\n");
+    printf("    gifmetadata [-h | --help] [-a | --all] [-v | --verbose] [-d | --dev] <file>\n\n");
     
     printf("OVERVIEW:\n");
     printf("    GIFs contain 'comments' that were commonly used to attribute copyright\n");
@@ -50,8 +48,6 @@ void print_help() {
     printf("    plain text:              A feature within the 89a specification to display\n");
     printf("                             plain text on-top of images that was never utilized.\n");
     printf("                             Prefixed with \"plain text:\".\n\n");
-    
-    printf("USAGE: gifmetadata [options] file\n\n");
     
     printf("OPTIONS:\n");
     
@@ -99,7 +95,7 @@ int parse_short_flag(char flag, cli_user_args *a) {
         a->verbose_flag = 1;
         return 1;
     case 'd':
-        a->dev_flag = 1;
+        a->debug_flag = 1;
         return 1;
     default:
         return 0;
@@ -135,7 +131,7 @@ int parse_long_flag(const char *flag, size_t flag_len, cli_user_args *a) {
         a->verbose_flag = 1;
         return 1;
     } else if (flag_len == 3 && strncmp(flag, "dev", flag_len) == 0) {
-        a->dev_flag = 1;
+        a->debug_flag = 1;
         return 1;
     } else {
         return 0;

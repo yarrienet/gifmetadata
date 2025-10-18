@@ -57,7 +57,7 @@ enum extension_type {
 
 // state callbacks
 
-enum file_read_state {
+enum gifmetadata_read_state {
     header,
     logical_screen_descriptor,
     global_color_table,
@@ -73,7 +73,7 @@ enum file_read_state {
 };
 
 typedef struct gifmetadata_state {
-    enum file_read_state read_state;
+    enum gifmetadata_read_state read_state;
 
     // TODO this is pulled from the initial representation however this buffer
     // will now be provided at parse function call
@@ -116,11 +116,13 @@ typedef struct gifmetadata_extension_info {
     size_t buffer_len;
 } gifmetadata_extension_info;
 
+// Implementation can be found in gif.c
 int gifmetadata_parse_gif(
     gifmetadata_state *s,
     unsigned char *chunk,
     size_t chunk_len,
-    void (*extension_cb)(gifmetadata_extension_info*));
+    void (*extension_cb)(gifmetadata_state*, gifmetadata_extension_info*),
+    void (*state_cb)(gifmetadata_state*, enum gifmetadata_read_state));
 
 // TODO 'int bytes_to_read' is used as the function that the loop depends
 // on for byte chunks. this will be moved to the function arguments

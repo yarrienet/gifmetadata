@@ -56,5 +56,6 @@ int gifmetadata_parse_gif(
     gifmetadata_state *s,
     unsigned char *chunk,
     size_t chunk_len,
-    void (*extension_cb)(gifmetadata_extension_info*));
+    void (*extension_cb)(gifmetadata_state*, gifmetadata_extension_info*),
+    void (*state_cb)(gifmetadata_state*, enum gifmetadata_read_state));
 

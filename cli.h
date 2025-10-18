@@ -66,7 +66,7 @@
 typedef struct cli_user_args {
     int all_flag; ///< Marks the presence of the 'all' flag
     int verbose_flag; ///< Marks the presence of the 'verbose' flag
-    int dev_flag; ///< Marks the presence of the 'dev' flag
+    int debug_flag; ///< Marks the presence of the 'dev' flag
     int help_flag; ///< Mark the presence of the 'help' flag
     char *filename; ///< Optional filename buffer
     size_t filename_size; ///< Size of filename buffer in bytes

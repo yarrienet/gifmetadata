@@ -33,23 +33,24 @@
 
 int all_flag = 0;
 int verbose_flag = 0;
+int debug_flag = 0;
 
-void extension_callback(gifmetadata_extension_info *extension) {
+void extension_cb(gifmetadata_state *s, gifmetadata_extension_info *extension) {
     if (extension == NULL)
         return;
     if (all_flag) {
         switch (extension->type) {
         case plain_text:
-            printf("plain text: %s\n", extension->buffer);
+            printf("Plain text: %s\n", extension->buffer);
             break;
         case application:
-            printf("application: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
+            printf("Application: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
             break;
         case application_subblock:
-            printf("application sub-block (%ld bytes)\n", extension->buffer_len);
+            printf("Application sub-block (%ld bytes)\n", extension->buffer_len);
             break;
         case comment:
-            printf("comment: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
+            printf("Comment: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
         }
     } else {
         if (extension->type == comment) {
@@ -57,6 +58,12 @@ void extension_callback(gifmetadata_extension_info *extension) {
         }
     }
     free(extension);
+}
+
+void state_cb(gifmetadata_state *s, enum gifmetadata_read_state state) {
+    if (debug_flag) {
+        fprintf(stderr, "DEBUG State change: %d\n", state);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -68,22 +75,16 @@ int main(int argc, char **argv) {
     
     all_flag = args->all_flag;
     verbose_flag = args->verbose_flag;
-
-    if (args->dev_flag) {
-        printf("[dev] dev flag active\n");
-        if (args->verbose_flag) {
-            printf("[dev] verbose flag active\n");
-        }
-    }
+    debug_flag = args->debug_flag;
     
     if (args->filename == NULL) {
-        fprintf(stderr, "[error] you never specified a file to open\n");
+        fprintf(stderr, "ERROR No file specified\n");
         cli_free_user_args(args);
         return EXIT_IO_ERROR;
     }
 
     if (access(args->filename, F_OK) != 0) {
-        fprintf(stderr, "[error] file '%s' cannot be accessed\n", args->filename);
+        fprintf(stderr, "ERROR File '%s' cannot be accessed\n", args->filename);
         cli_free_user_args(args);
         return EXIT_IO_ERROR;
     }
@@ -91,33 +92,33 @@ int main(int argc, char **argv) {
     FILE *f;
     f = fopen(args->filename, "rb");
     if (!f) {
-        fprintf(stderr, "[error] failed to open file '%s'\n", args->filename);
+        fprintf(stderr, "ERROR Failed to open file '%s'\n", args->filename);
         cli_free_user_args(args);
         return EXIT_IO_ERROR;
     }
     cli_free_user_args(args);
 
     if (fseek(f, 0, SEEK_END) != 0) {
-        fprintf(stderr, "[error] failed to seek file '%s'\n", args->filename);
+        fprintf(stderr, "ERROR Failed to seek file '%s'\n", args->filename);
         fclose(f);
         return EXIT_IO_ERROR;
     }
 
     size_t size = ftell(f);
     if (size < 0) {
-        fprintf(stderr, "[error] failed to ftell file '%s'\n", args->filename);
+        fprintf(stderr, "ERROR Failed to read file '%s'\n", args->filename);
         fclose(f);
         return EXIT_IO_ERROR;
     }
 
     if (verbose_flag)
-        printf("[verbose] file size: %ld bytes\n", size);
+        fprintf(stderr, "VERBOSE File size: %ld\n", size);
 
     rewind(f);
 
     unsigned char *buf = malloc(size);
     if (!buf) {
-        fprintf(stderr, "[error] failed to alloc file buffer\n");
+        fprintf(stderr, "ERROR Failed to allocate file buffer\n");
         fclose(f);
         return EXIT_IO_ERROR;
     }
@@ -127,35 +128,34 @@ int main(int argc, char **argv) {
 
     gifmetadata_state *gifmetadata_s = gifmetadata_state_new();
     if (gifmetadata_s == NULL) {
-        fprintf(stderr, "[error] failed to alloc state\n");
+        fprintf(stderr, "ERROR Failed to allocate state memory\n");
         return EXIT_MEM_ERROR;
     }
-    int status = gifmetadata_parse_gif(gifmetadata_s, buf, size, &extension_callback);
+    int status = gifmetadata_parse_gif(gifmetadata_s, buf, size, &extension_cb, &state_cb);
 
     switch (status) {
     case GIFMETADATA_SUCCESS:
         break;
     case GIFMETADATA_INVALID_SIG:
-        fprintf(stderr, "[error] file is an unsupported gif version\n");
+        fprintf(stderr, "ERROR Unsupported GIF version (invalid signature)\n");
         return EXIT_PARSE_ERROR;
     case GIFMETADATA_COMMENT_EXCEEDS_BOUNDS:
-        // value correct as of v0.0.3
-        fprintf(stderr, "[error] file contains a comment that exceeds 2560 characters\n");
+        fprintf(stderr, "ERROR Comment exceeds maximum comment length\n");
         return EXIT_PARSE_ERROR;
     case GIFMETADATA_ALLOC_FAILED:
-        fprintf(stderr, "[error] failed to allocate memory\n");
+        fprintf(stderr, "ERROR Failed to allocate memory\n");
         return EXIT_MEM_ERROR;
     case GIFMETADATA_UNEXPECTED_EOF:
         // non-fatal status code
-        fprintf(stderr, "[warning] unexpected eof\n");
+        fprintf(stderr, "WARNING Unexpected end of file\n");
         break;
     default:
-        fprintf(stderr, "[error] unhandled gif state\n");
+        fprintf(stderr, "ERROR Unknown error\n");
         return 1;
     }
 
     if (verbose_flag) {
-        printf("[verbose] gif version ");
+        fprintf(stderr, "VERBOSE GIF version: ");
         switch (gifmetadata_s->gif_version) {
         case gif87a:
             printf("87a\n");
@@ -167,9 +167,8 @@ int main(int argc, char **argv) {
             printf("unknown (%d)\n", gifmetadata_s->gif_version);
         }
 
-        printf("[verbose] canvas width: %d height: %d\n",
-            gifmetadata_s->canvas_width,
-            gifmetadata_s->canvas_height);
+        fprintf(stderr, "VERBOSE Canvas width: %d\n", gifmetadata_s->canvas_width);
+        fprintf(stderr, "VERBOSE Canvas height: %d\n", gifmetadata_s->canvas_height);
     }
 
     return 0;

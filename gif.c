@@ -16,6 +16,7 @@
 
 #include "gif.h"
 
+#define CALL_STATE_CB(cb, s) if (cb != NULL) cb(s, s->read_state)
 
 const char gif_sig[] = { 'G', 'I', 'F', '8', 'x', 'a' };
 
@@ -23,11 +24,12 @@ int gifmetadata_parse_gif(
     gifmetadata_state *s,
     unsigned char *chunk,
     size_t chunk_len,
-    void (*extension_cb)(gifmetadata_extension_info*)) {
+    void (*extension_cb)(gifmetadata_state*, gifmetadata_extension_info*),
+    void (*state_cb)(gifmetadata_state*, enum gifmetadata_read_state)) {
 
     for (int i = 0; i < chunk_len; i++) {
         unsigned char byte = chunk[i];
-        
+       
         if (s->read_state == header) {
             // loading header bytes into scratchpad until complete
             s->scratchpad[s->scratchpad_i++] = byte;
@@ -50,6 +52,7 @@ int gifmetadata_parse_gif(
 
                 s->scratchpad_i = 0;
                 s->read_state = logical_screen_descriptor;
+                CALL_STATE_CB(state_cb, s);
                 s->local_lsd_state = 0;
             }
         }
@@ -86,8 +89,10 @@ int gifmetadata_parse_gif(
                     // use the scratchpad index as color table index
                     s->scratchpad_i = 0;
                     s->read_state = global_color_table;
+                    CALL_STATE_CB(state_cb, s);
                 } else {
                     s->read_state = searching;
+                    CALL_STATE_CB(state_cb, s);
                 }
                 
                 break;
@@ -100,6 +105,7 @@ int gifmetadata_parse_gif(
             // loop through the global color table, ignoring the contents
             if (s->color_table_len < s->scratchpad_i) {
                 s->read_state = searching;
+                CALL_STATE_CB(state_cb, s);
             }
             s->scratchpad_i++;
             break;
@@ -107,9 +113,11 @@ int gifmetadata_parse_gif(
             switch (byte) {
             case 0x21:
                 s->read_state = extension;
+                CALL_STATE_CB(state_cb, s);
                 break;
             case 0x2c:
                 s->read_state = image_descriptor;
+                CALL_STATE_CB(state_cb, s);
                 s->scratchpad_i = 0;
                 s->scratchpad_len = 0;
                 break;
@@ -119,6 +127,7 @@ int gifmetadata_parse_gif(
                 // has been made with comment data coming after
                 // the trailer as a mistake or easter egg
                 s->read_state = trailer;
+                CALL_STATE_CB(state_cb, s);
                 break;
             default:
                 // unknown byte
@@ -130,6 +139,7 @@ int gifmetadata_parse_gif(
             s->scratchpad_i = 0;
             s->scratchpad_len = 0;
             s->read_state = known_extension;
+            CALL_STATE_CB(state_cb, s);
             switch (byte) {
                 case 0x01:
                     s->local_extension_type = plain_text;
@@ -144,6 +154,7 @@ int gifmetadata_parse_gif(
                     s->scratchpad_i = 0;
                     s->scratchpad_len = 0;
                     s->read_state = unknown_extension;
+                    CALL_STATE_CB(state_cb, s);
                     break;
             }
             break;
@@ -151,6 +162,7 @@ int gifmetadata_parse_gif(
             if (s->scratchpad_len == 0) {
                 if (byte == 0) {
                     s->read_state = searching;
+                    CALL_STATE_CB(state_cb, s);
                     break;
                 }
                 s->scratchpad_len = byte;
@@ -158,6 +170,7 @@ int gifmetadata_parse_gif(
             } else {
                 if (byte == 0x0 && s->scratchpad_i >= s->scratchpad_len) {
                     s->read_state = searching;
+                    CALL_STATE_CB(state_cb, s);
                 } else {
                     s->scratchpad_i++;
                 }	
@@ -171,6 +184,7 @@ int gifmetadata_parse_gif(
                 // zero then terminate
                 if (byte == 0) {
                     s->read_state = searching;
+                    CALL_STATE_CB(state_cb, s);
                     break;
                 }
                 // else get ready for a new block
@@ -216,7 +230,7 @@ int gifmetadata_parse_gif(
                             extension_cb_info->buffer_len = s->scratchpad_len;
                         }
                         // TODO ensure that callback receiver frees struct
-                        extension_cb(extension_cb_info);
+                        extension_cb(s, extension_cb_info);
                     }
 
                     // if the next extension type is an application then
@@ -228,10 +242,12 @@ int gifmetadata_parse_gif(
                         
                         if (s->scratchpad_len == 0) {
                             s->read_state = searching;
+                            CALL_STATE_CB(state_cb, s);
                             break;
                         }
                     } else {
                         s->read_state = searching;
+                        CALL_STATE_CB(state_cb, s);
                     }
                 }
             }
@@ -245,10 +261,12 @@ int gifmetadata_parse_gif(
                     int local_color_table = byte & 0b111;
                     s->scratchpad_len = 3*pow(2,local_color_table+1);
                     s->read_state = local_color_table;
+                    CALL_STATE_CB(state_cb, s);
                 } else {
                     s->scratchpad_i = 0;
                     s->scratchpad_len = 0;
                     s->read_state = image_data;
+                    CALL_STATE_CB(state_cb, s);
                     break;
                 }
             } else {
@@ -261,6 +279,7 @@ int gifmetadata_parse_gif(
                 s->scratchpad_i = 0;
                 s->scratchpad_len = 0;
                 s->read_state = image_data;
+                CALL_STATE_CB(state_cb, s);
             } else {
                 s->scratchpad_i++;
             }
@@ -277,6 +296,7 @@ int gifmetadata_parse_gif(
                 if (s->scratchpad_i >= s->scratchpad_len) {
                     if (byte == 0) {
                         s->read_state = searching;
+                        CALL_STATE_CB(state_cb, s);
                         break;
                     } else {
                         s->scratchpad_i = 0;
