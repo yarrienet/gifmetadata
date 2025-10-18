@@ -158,13 +158,13 @@ int main(int argc, char **argv) {
         fprintf(stderr, "VERBOSE GIF version: ");
         switch (gifmetadata_s->gif_version) {
         case gif87a:
-            printf("87a\n");
+            fprintf(stderr, "87a\n");
             break;
         case gif89a:
-            printf("89a\n");
+            fprintf(stderr, "89a\n");
             break;
         default:
-            printf("unknown (%d)\n", gifmetadata_s->gif_version);
+            fprintf(stderr, "unknown (%d)\n", gifmetadata_s->gif_version);
         }
 
         fprintf(stderr, "VERBOSE Canvas width: %d\n", gifmetadata_s->canvas_width);

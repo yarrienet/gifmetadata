@@ -14,7 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "gif.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <math.h>
+
+#include "gifmetadata.h"
 
 #define CALL_STATE_CB(cb, s) if (cb != NULL) cb(s, s->read_state)
 

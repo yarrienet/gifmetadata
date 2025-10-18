@@ -1,9 +1,10 @@
 *.gif
 a.out*
 build/
-gifmetadata
+gifcomment
 *.txt
 .DS_Store
 *.tar.gz
 *.o
+*.a
 examples/
