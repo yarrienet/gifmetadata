@@ -62,6 +62,17 @@ void cli_free_user_args(cli_user_args *a) {
     if (a != NULL && a->filename != NULL)
         free(a->filename);
 
+    // free comments linked list
+    cli_flag_arg *item = a->comment_flags;
+    while (item != NULL) {
+        if (item->string != NULL) {
+            free(item->string);
+        }
+        cli_flag_arg *to_free = item;
+        item = item->next;
+        free(to_free);
+    } 
+
     // free whole struct
     if (a != NULL)
         free(a);
@@ -83,7 +94,7 @@ void cli_free_user_args(cli_user_args *a) {
  *         integer value is returned. If a flag was not recognized then a 0
  *         integer value is returned and the structure is not modified.
  */
-int parse_short_flag(char flag, cli_user_args *a) {
+int parse_short_flag(char flag, cli_user_args *a, cli_flag_arg **awaiting_flag_arg) {
     switch (flag) {
     case 'h':
         a->help_flag = 1;
@@ -96,6 +107,44 @@ int parse_short_flag(char flag, cli_user_args *a) {
         return 1;
     case 'd':
         a->debug_flag = 1;
+        return 1;
+    case 'c':
+        cli_flag_arg *new_flag_arg = malloc(sizeof(cli_flag_arg));
+        if (new_flag_arg == NULL) {
+            // TODO correct error handling
+            printf("[error] failed to alloc comment cli flag arg\n");
+            return 0;
+        }
+        new_flag_arg->string = NULL;
+        new_flag_arg->string_len = 0;
+        new_flag_arg->next = NULL;
+
+        if (a->comment_flags != NULL) {
+            cli_flag_arg *end = a->comment_flags;
+            while (end->next != NULL) {
+                end = end->next;
+            }
+            end->next = new_flag_arg;
+        } else {
+            a->comment_flags = new_flag_arg;
+        }
+        *awaiting_flag_arg = new_flag_arg;
+        return 1;
+    case 'o':
+        if (a->output_flag != NULL) {
+            printf("[error] more than one output provided\n");
+            return 0;
+        }
+        a->output_flag = malloc(sizeof(cli_flag_arg));
+        if (a->output_flag == NULL) {
+            // TODO correct error handling
+            printf("[error] failed to alloc output cli flag arg\n");
+            return 0;
+        }
+        a->output_flag->string = NULL;
+        a->output_flag->string_len = 0;
+        a->output_flag->next = NULL;
+        *awaiting_flag_arg = a->output_flag;
         return 1;
     default:
         return 0;
@@ -146,6 +195,8 @@ cli_user_args *cli_parse(int argc, char **argv) {
         return NULL;
     }
 
+    cli_flag_arg *awaiting_flag_arg = NULL;
+
     // loop each command line arguments
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
@@ -163,6 +214,21 @@ cli_user_args *cli_parse(int argc, char **argv) {
             cli_free_user_args(parsed_args);
             return NULL;
         }
+
+        // if awaiting flag arg, capture
+        if (awaiting_flag_arg != NULL) {
+            awaiting_flag_arg->string = malloc(arg_len);
+            if (awaiting_flag_arg->string == NULL) {
+                // TODO free the flag_arg
+                fprintf(stderr, "[error] failed to alloc flag arg");
+                cli_free_user_args(parsed_args);
+            }
+            awaiting_flag_arg->string_len = arg_len;
+            strncpy(awaiting_flag_arg->string, arg, arg_len);
+
+            awaiting_flag_arg = NULL;
+            continue;
+        }
         
         // determine the number of preceding dashes and break when encountering
         // no more
@@ -178,7 +244,7 @@ cli_user_args *cli_parse(int argc, char **argv) {
             // parse short flag and update struct
             for (int arg_i = 1; arg_i < arg_len; arg_i++) {
                 char flag_c = arg[arg_i];
-                if (parse_short_flag(flag_c, parsed_args) != 1) {
+                if (parse_short_flag(flag_c, parsed_args, &awaiting_flag_arg) != 1) {
                     fprintf(stderr, "[error] invalid flag '%c'\n", flag_c);
                     cli_free_user_args(parsed_args);
                     return NULL;
@@ -218,6 +284,12 @@ cli_user_args *cli_parse(int argc, char **argv) {
 
     if (parsed_args->help_flag) {
         print_help();
+        cli_free_user_args(parsed_args);
+        return NULL;
+    }
+
+    if (awaiting_flag_arg != NULL) {
+        printf("[error] argument not provided to flag\n");
         cli_free_user_args(parsed_args);
         return NULL;
     }

@@ -76,6 +76,12 @@ int main(int argc, char **argv) {
     all_flag = args->all_flag;
     verbose_flag = args->verbose_flag;
     debug_flag = args->debug_flag;
+
+    cli_flag_arg *flag_arg = args->comment_flags;
+    while (flag_arg != NULL) {
+        printf("flag arg: %s\n", flag_arg->string);
+        flag_arg = flag_arg->next;
+    }
     
     if (args->filename == NULL) {
         fprintf(stderr, "ERROR No file specified\n");

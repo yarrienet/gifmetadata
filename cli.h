@@ -21,6 +21,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct cli_flag_arg {
+    char *string;
+    size_t string_len;
+    struct cli_flag_arg *next;
+} cli_flag_arg;
+
 /**
  * @struct cli_user_args
  * @brief Holds the user provided arguments after being parsed.
@@ -68,6 +74,9 @@ typedef struct cli_user_args {
     int verbose_flag; ///< Marks the presence of the 'verbose' flag
     int debug_flag; ///< Marks the presence of the 'dev' flag
     int help_flag; ///< Mark the presence of the 'help' flag
+    cli_flag_arg *comment_flags; // Multiple flag argument allowed
+    cli_flag_arg *output_flag; // Only one output allowed
+
     char *filename; ///< Optional filename buffer
     size_t filename_size; ///< Size of filename buffer in bytes
 } cli_user_args;
