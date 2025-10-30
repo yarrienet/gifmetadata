@@ -31,9 +31,22 @@
 #define EXIT_MEM_ERROR 3
 #define EXIT_PARSE_ERROR 4
 
+const unsigned char comment_extension[] = { 0x21, 0xfe };
+
 int all_flag = 0;
 int verbose_flag = 0;
 int debug_flag = 0;
+
+int output_comments = 1;
+
+// file buffer
+unsigned char *buf;
+
+// have written comments to output
+int w_comments = 0;
+int w_index = 0;
+FILE *w_out = NULL;
+cli_flag_arg *comment_flags = NULL;
 
 void extension_cb(gifmetadata_state *s, gifmetadata_extension_info *extension) {
     if (extension == NULL)
@@ -52,7 +65,7 @@ void extension_cb(gifmetadata_state *s, gifmetadata_extension_info *extension) {
         case comment:
             printf("Comment: %s (%ld bytes)\n", extension->buffer, extension->buffer_len);
         }
-    } else {
+    } else if (output_comments) {
         if (extension->type == comment) {
             printf("%s\n", extension->buffer);
         }
@@ -63,6 +76,46 @@ void extension_cb(gifmetadata_state *s, gifmetadata_extension_info *extension) {
 void state_cb(gifmetadata_state *s, enum gifmetadata_read_state state) {
     if (debug_flag) {
         fprintf(stderr, "DEBUG State change: %d\n", state);
+    }
+
+    // state is called on the very first byte of the state block, writing the
+    // pending contents of the file, one byte before the encountered block
+    // is required
+
+    if (w_out != NULL) {
+        int write_comment = comment_flags != NULL && state != searching && state > global_color_table && !w_comments;
+
+        int pending_i = s->file_i;
+        if (write_comment) {
+            // don't write the new block comment
+            pending_i--;
+        }
+
+        int write_size = pending_i - w_index;
+        if (write_size > 0) {
+            fwrite(buf+w_index, 1, write_size, w_out);
+            w_index = pending_i;
+        }
+
+        if (write_comment) {
+            cli_flag_arg *comment = comment_flags;
+            while (comment != NULL) {
+                fwrite(&comment_extension, 1, sizeof(comment_extension), w_out);
+                unsigned char len;
+                if (comment->string_len > 255) {
+                    printf("WARNING comment length is longer than 255 characters, this is may cause incompatibility issues\n");
+                    len = 255;
+                } else {
+                    len = (unsigned char)comment->string_len;
+                }
+                fwrite(&len, 1, 1, w_out);
+                fwrite(comment->string, 1, comment->string_len, w_out);
+                fputc(0, w_out);
+
+                comment = comment->next;
+            }
+            w_comments = 1; 
+        }
     }
 }
 
@@ -77,12 +130,6 @@ int main(int argc, char **argv) {
     verbose_flag = args->verbose_flag;
     debug_flag = args->debug_flag;
 
-    cli_flag_arg *flag_arg = args->comment_flags;
-    while (flag_arg != NULL) {
-        printf("flag arg: %s\n", flag_arg->string);
-        flag_arg = flag_arg->next;
-    }
-    
     if (args->filename == NULL) {
         fprintf(stderr, "ERROR No file specified\n");
         cli_free_user_args(args);
@@ -102,7 +149,8 @@ int main(int argc, char **argv) {
         cli_free_user_args(args);
         return EXIT_IO_ERROR;
     }
-    cli_free_user_args(args);
+    // TODO cli_free_user_args used to be here, must be called again on all
+    // exit lines below
 
     if (fseek(f, 0, SEEK_END) != 0) {
         fprintf(stderr, "ERROR Failed to seek file '%s'\n", args->filename);
@@ -122,7 +170,7 @@ int main(int argc, char **argv) {
 
     rewind(f);
 
-    unsigned char *buf = malloc(size);
+    buf = malloc(size);
     if (!buf) {
         fprintf(stderr, "ERROR Failed to allocate file buffer\n");
         fclose(f);
@@ -131,6 +179,20 @@ int main(int argc, char **argv) {
 
     fread(buf, 1, size, f);
     fclose(f);
+
+    // if (args->output_flag != NULL) {
+        // TODO
+    // }
+
+    // configuring the file for reading
+    if (args->comment_flags != NULL) {
+        if (w_out == NULL) {
+            // no output configured, print to stdout
+            output_comments = 0;
+            w_out = stdout;
+        }
+        comment_flags = args->comment_flags;
+    }
 
     gifmetadata_state *gifmetadata_s = gifmetadata_state_new();
     if (gifmetadata_s == NULL) {
@@ -177,6 +239,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "VERBOSE Canvas height: %d\n", gifmetadata_s->canvas_height);
     }
 
+    cli_free_user_args(args);
     return 0;
 }
 

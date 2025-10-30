@@ -69,7 +69,8 @@ enum gifmetadata_read_state {
     known_extension,
     unknown_extension,
     trailer,
-    searching
+    searching,
+    eof
 };
 
 typedef struct gifmetadata_state {
@@ -78,6 +79,9 @@ typedef struct gifmetadata_state {
     // TODO this is pulled from the initial representation however this buffer
     // will now be provided at parse function call
     unsigned char buffer[256];
+
+    // file_i
+    int file_i;
 
     int color_table_size;
     int color_table_len;

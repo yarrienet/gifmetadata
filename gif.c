@@ -21,6 +21,7 @@
 
 #include "gifmetadata.h"
 
+// IMPORTANT this should be called as it encounters the byte, not pre-emptively
 #define CALL_STATE_CB(cb, s) if (cb != NULL) cb(s, s->read_state)
 
 const char gif_sig[] = { 'G', 'I', 'F', '8', 'x', 'a' };
@@ -33,6 +34,7 @@ int gifmetadata_parse_gif(
     void (*state_cb)(gifmetadata_state*, enum gifmetadata_read_state)) {
 
     for (int i = 0; i < chunk_len; i++) {
+        s->file_i++;
         unsigned char byte = chunk[i];
        
         if (s->read_state == header) {
@@ -57,15 +59,14 @@ int gifmetadata_parse_gif(
 
                 s->scratchpad_i = 0;
                 s->read_state = logical_screen_descriptor;
-                CALL_STATE_CB(state_cb, s);
+                // next byte will be the lsd
                 s->local_lsd_state = 0;
             }
         }
         
-        // for (; i < bytes_to_read; i++) {
         switch (s->read_state) {
         case logical_screen_descriptor:
-            
+            CALL_STATE_CB(state_cb, s); 
             switch (s->local_lsd_state) {
             case width:
             case height:
@@ -94,10 +95,8 @@ int gifmetadata_parse_gif(
                     // use the scratchpad index as color table index
                     s->scratchpad_i = 0;
                     s->read_state = global_color_table;
-                    CALL_STATE_CB(state_cb, s);
                 } else {
                     s->read_state = searching;
-                    CALL_STATE_CB(state_cb, s);
                 }
                 
                 break;
@@ -107,14 +106,18 @@ int gifmetadata_parse_gif(
             
             break;
         case global_color_table:
+            CALL_STATE_CB(state_cb, s);
             // loop through the global color table, ignoring the contents
             if (s->color_table_len < s->scratchpad_i) {
                 s->read_state = searching;
-                CALL_STATE_CB(state_cb, s);
             }
             s->scratchpad_i++;
             break;
         case searching:
+            //CALL_STATE_CB(state_cb, s);
+
+            // the following CALL_STATE_CB are not considered pre-emptive as it
+            // is byte matching, hence marking the actual start of the block
             switch (byte) {
             case 0x21:
                 s->read_state = extension;
@@ -144,16 +147,18 @@ int gifmetadata_parse_gif(
             s->scratchpad_i = 0;
             s->scratchpad_len = 0;
             s->read_state = known_extension;
-            CALL_STATE_CB(state_cb, s);
             switch (byte) {
                 case 0x01:
                     s->local_extension_type = plain_text;
+                    CALL_STATE_CB(state_cb, s);
                     break;
                 case 0xff:
                     s->local_extension_type = application;
+                    CALL_STATE_CB(state_cb, s);
                     break;
                 case 0xfe:
                     s->local_extension_type = comment;
+                    CALL_STATE_CB(state_cb, s);
                     break;
                 default:
                     s->scratchpad_i = 0;
@@ -167,7 +172,6 @@ int gifmetadata_parse_gif(
             if (s->scratchpad_len == 0) {
                 if (byte == 0) {
                     s->read_state = searching;
-                    CALL_STATE_CB(state_cb, s);
                     break;
                 }
                 s->scratchpad_len = byte;
@@ -175,7 +179,6 @@ int gifmetadata_parse_gif(
             } else {
                 if (byte == 0x0 && s->scratchpad_i >= s->scratchpad_len) {
                     s->read_state = searching;
-                    CALL_STATE_CB(state_cb, s);
                 } else {
                     s->scratchpad_i++;
                 }	
@@ -189,7 +192,6 @@ int gifmetadata_parse_gif(
                 // zero then terminate
                 if (byte == 0) {
                     s->read_state = searching;
-                    CALL_STATE_CB(state_cb, s);
                     break;
                 }
                 // else get ready for a new block
@@ -247,12 +249,10 @@ int gifmetadata_parse_gif(
                         
                         if (s->scratchpad_len == 0) {
                             s->read_state = searching;
-                            CALL_STATE_CB(state_cb, s);
                             break;
                         }
                     } else {
                         s->read_state = searching;
-                        CALL_STATE_CB(state_cb, s);
                     }
                 }
             }
@@ -266,12 +266,10 @@ int gifmetadata_parse_gif(
                     int local_color_table = byte & 0b111;
                     s->scratchpad_len = 3*pow(2,local_color_table+1);
                     s->read_state = local_color_table;
-                    CALL_STATE_CB(state_cb, s);
                 } else {
                     s->scratchpad_i = 0;
                     s->scratchpad_len = 0;
                     s->read_state = image_data;
-                    CALL_STATE_CB(state_cb, s);
                     break;
                 }
             } else {
@@ -279,17 +277,18 @@ int gifmetadata_parse_gif(
             }
             break;
         case local_color_table:
+            CALL_STATE_CB(state_cb, s);
             // loop through the local color table, ignoring the contents
             if (s->scratchpad_i >= s->scratchpad_len) {
                 s->scratchpad_i = 0;
                 s->scratchpad_len = 0;
                 s->read_state = image_data;
-                CALL_STATE_CB(state_cb, s);
             } else {
                 s->scratchpad_i++;
             }
             break;
         case image_data:
+            CALL_STATE_CB(state_cb, s);
             // loop through the image data, ignoring the contents
             if (s->scratchpad_len == 0) {
                 if (s->scratchpad_i == 1) {
@@ -301,7 +300,6 @@ int gifmetadata_parse_gif(
                 if (s->scratchpad_i >= s->scratchpad_len) {
                     if (byte == 0) {
                         s->read_state = searching;
-                        CALL_STATE_CB(state_cb, s);
                         break;
                     } else {
                         s->scratchpad_i = 0;
@@ -324,6 +322,10 @@ int gifmetadata_parse_gif(
     // TODO 
     if (s->read_state != trailer)
         return GIFMETADATA_UNEXPECTED_EOF;
+
+    // end of the file
+    s->read_state = eof;
+    CALL_STATE_CB(state_cb, s);    
 
     return GIFMETADATA_SUCCESS;
 }

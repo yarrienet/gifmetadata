@@ -21,6 +21,8 @@ gifmetadata_state *gifmetadata_state_new() {
     if (state == NULL)
         return NULL;
 
+    state->file_i = 0;
+
     // configure the scratchpad
 
     // TODO include scratchpad size in header file
