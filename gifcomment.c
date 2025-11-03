@@ -35,7 +35,6 @@ const unsigned char comment_extension[] = { 0x21, 0xfe };
 
 int all_flag = 0;
 int verbose_flag = 0;
-int debug_flag = 0;
 
 int output_comments = 1;
 
@@ -74,10 +73,6 @@ void extension_cb(gifmetadata_state *s, gifmetadata_extension_info *extension) {
 }
 
 void state_cb(gifmetadata_state *s, enum gifmetadata_read_state state) {
-    if (debug_flag) {
-        fprintf(stderr, "DEBUG State change: %d\n", state);
-    }
-
     // state is called on the very first byte of the state block, writing the
     // pending contents of the file, one byte before the encountered block
     // is required
@@ -120,22 +115,58 @@ void state_cb(gifmetadata_state *s, enum gifmetadata_read_state state) {
 }
 
 int main(int argc, char **argv) {
-
-    cli_user_args *args = cli_parse(argc, argv);
-    // returns null when handled e.g. help
-    if (args == NULL)
-        return 0;
-    
-    all_flag = args->all_flag;
-    verbose_flag = args->verbose_flag;
-    debug_flag = args->debug_flag;
-
-    if (args->filename == NULL) {
-        fprintf(stderr, "ERROR No file specified\n");
-        cli_free_user_args(args);
-        return EXIT_IO_ERROR;
+    cli_user_args *args = cli_new_user_args();
+    if (args == NULL) {
+        printf("ERROR Failed to allocate user arguments\n");
+        return EXIT_MEM_ERROR;
     }
 
+    int cli_status = cli_parse(args, argc, argv);
+    char invalid_flag = args->invalid_flag;
+    if (cli_status < 0)
+        cli_free_user_args(args);
+    switch (cli_status) {
+    case CLI_SUCCESS:
+        break;
+    case CLI_INVALID_FLAG:
+        printf("ERROR Invalid flag '%c'\n", invalid_flag);
+        return EXIT_PARSE_ERROR;
+    case CLI_ALLOC_FAILURE:
+        printf("ERROR Memory alloc failure\n");
+        return EXIT_MEM_ERROR;
+    case CLI_EXCEEDS_ARG_MAX_LEN:
+        printf("ERROR Argument exceeds the maximum length of %d characters\n", CLI_ARG_MAX_LEN);
+        return EXIT_PARSE_ERROR;
+    case CLI_MULTIPLE_INPUTS:
+        printf("ERROR More than one input file provided\n");
+        return EXIT_PARSE_ERROR;
+    case CLI_MULTIPLE_OUTPUTS:
+        printf("ERROR More than one output file provided\n");
+        return EXIT_PARSE_ERROR;
+    case CLI_MISSING_FLAG_ARG:
+        printf("ERROR Flag '%c' is missing an argument\n", invalid_flag);
+        return EXIT_PARSE_ERROR;
+    default:
+        printf("ERROR Unknown\n");
+        return EXIT_PARSE_ERROR;
+    }
+
+    verbose_flag = args->verbose_flag;
+    all_flag = args->all_flag;
+
+    /*
+    TODO when chunked buffering is working, use stdin on no filename
+    FILE *f;
+    if (args->filename == NULL)
+        f = stdin;
+    */
+
+    if (args->filename == NULL) {
+        printf("ERROR No input file given\n");
+        return EXIT_PARSE_ERROR;
+    }
+
+    
     if (access(args->filename, F_OK) != 0) {
         fprintf(stderr, "ERROR File '%s' cannot be accessed\n", args->filename);
         cli_free_user_args(args);
