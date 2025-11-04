@@ -33,9 +33,13 @@ int gifmetadata_parse_gif(
     void (*extension_cb)(gifmetadata_state*, gifmetadata_extension_info*),
     void (*state_cb)(gifmetadata_state*, enum gifmetadata_read_state)) {
 
+    s->chunk = chunk;
+    s->chunk_len = chunk_len;
+
     for (int i = 0; i < chunk_len; i++) {
         s->file_i++;
         unsigned char byte = chunk[i];
+        s->chunk_i = i;
        
         if (s->read_state == header) {
             // loading header bytes into scratchpad until complete
@@ -312,20 +316,8 @@ int gifmetadata_parse_gif(
             break;
         default:
             break;
-        }
-        // }
-        
+        } 
     }
-    //free(extension_cb_info);
-    //free(scratchpad);
-
-    // TODO 
-    if (s->read_state != trailer)
-        return GIFMETADATA_UNEXPECTED_EOF;
-
-    // end of the file
-    s->read_state = eof;
-    CALL_STATE_CB(state_cb, s);    
 
     return GIFMETADATA_SUCCESS;
 }

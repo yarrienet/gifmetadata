@@ -27,13 +27,12 @@
 #define GIFMETADATA_COMMENT_EXCEEDS_BOUNDS -2
 // TODO rename to ALLOC_FAILURE
 #define GIFMETADATA_ALLOC_FAILED -3
-#define GIFMETADATA_UNEXPECTED_EOF -4
 
 #define SCRATCHPAD_CHUNK_SIZE 256
 
 enum gifmetadata_gif_version {
-    gif87a,
-    gif89a
+    gif87a = 1,
+    gif89a = 2
 };
 
 // TODO prefix all, private some
@@ -77,9 +76,11 @@ enum gifmetadata_read_state {
 typedef struct gifmetadata_state {
     enum gifmetadata_read_state read_state;
 
-    // TODO this is pulled from the initial representation however this buffer
-    // will now be provided at parse function call
-    unsigned char buffer[256];
+    // externally managed buffers provided at each parse, do not
+    // attempt to edit or free
+    unsigned char *chunk;
+    size_t chunk_len;
+    int chunk_i;
 
     // file_i
     int file_i;

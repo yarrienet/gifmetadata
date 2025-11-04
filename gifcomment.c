@@ -31,6 +31,8 @@
 #define EXIT_MEM_ERROR 3
 #define EXIT_PARSE_ERROR 4
 
+#define BUF_SIZE 256
+
 const unsigned char comment_extension[] = { 0x21, 0xfe };
 
 int all_flag = 0;
@@ -43,7 +45,7 @@ unsigned char *buf;
 
 // have written comments to output
 int w_comments = 0;
-int w_index = 0;
+int w_chunk_i = 0;
 FILE *w_out = NULL;
 cli_flag_arg *comment_flags = NULL;
 
@@ -73,45 +75,37 @@ void extension_cb(gifmetadata_state *s, gifmetadata_extension_info *extension) {
 }
 
 void state_cb(gifmetadata_state *s, enum gifmetadata_read_state state) {
-    // state is called on the very first byte of the state block, writing the
-    // pending contents of the file, one byte before the encountered block
-    // is required
+    // state is called on the exact byte of first encounter
 
-    if (w_out != NULL) {
-        int write_comment = comment_flags != NULL && state != searching && state > global_color_table && !w_comments;
-
-        int pending_i = s->file_i;
-        if (write_comment) {
-            // don't write the new block comment
-            pending_i--;
-        }
-
-        int write_size = pending_i - w_index;
-        if (write_size > 0) {
-            fwrite(buf+w_index, 1, write_size, w_out);
-            w_index = pending_i;
-        }
-
-        if (write_comment) {
-            cli_flag_arg *comment = comment_flags;
-            while (comment != NULL) {
-                fwrite(&comment_extension, 1, sizeof(comment_extension), w_out);
-                unsigned char len;
-                if (comment->string_len > 255) {
-                    printf("WARNING comment length is longer than 255 characters, this is may cause incompatibility issues\n");
-                    len = 255;
-                } else {
-                    len = (unsigned char)comment->string_len;
-                }
-                fwrite(&len, 1, 1, w_out);
-                fwrite(comment->string, 1, comment->string_len, w_out);
-                fputc(0, w_out);
-
-                comment = comment->next;
-            }
-            w_comments = 1; 
-        }
+    int write_comment = w_out != NULL && comment_flags != NULL && state != searching && state > global_color_table && !w_comments;
+    if (!write_comment) {
+        return;
     }
+
+    if (s->chunk_i > 0) {
+        // write to before the current byte
+        // no need to minus one as index starts at zero
+        fwrite(s->chunk, 1, s->chunk_i, w_out);
+        w_chunk_i = s->chunk_i;
+    }
+
+    cli_flag_arg *comment = comment_flags;
+    while (comment != NULL) {
+        fwrite(&comment_extension, 1, sizeof(comment_extension), w_out);
+        unsigned char len;
+        if (comment->string_len > 255) {
+            printf("WARNING Comment length is longer than 255 characters, this is may cause incompatibility issues\n");
+            len = 255;
+        } else {
+            len = (unsigned char)comment->string_len;
+        }
+        fwrite(&len, 1, 1, w_out);
+        fwrite(comment->string, 1, comment->string_len, w_out);
+        fputc(0, w_out);
+
+        comment = comment->next;
+    }
+    w_comments = 1; 
 }
 
 int main(int argc, char **argv) {
@@ -154,103 +148,109 @@ int main(int argc, char **argv) {
     verbose_flag = args->verbose_flag;
     all_flag = args->all_flag;
 
-    /*
-    TODO when chunked buffering is working, use stdin on no filename
-    FILE *f;
-    if (args->filename == NULL)
-        f = stdin;
-    */
-
-    if (args->filename == NULL) {
-        printf("ERROR No input file given\n");
-        return EXIT_PARSE_ERROR;
-    }
-
-    
-    if (access(args->filename, F_OK) != 0) {
-        fprintf(stderr, "ERROR File '%s' cannot be accessed\n", args->filename);
-        cli_free_user_args(args);
-        return EXIT_IO_ERROR;
-    }
-    
-    FILE *f;
-    f = fopen(args->filename, "rb");
-    if (!f) {
-        fprintf(stderr, "ERROR Failed to open file '%s'\n", args->filename);
-        cli_free_user_args(args);
-        return EXIT_IO_ERROR;
-    }
-    // TODO cli_free_user_args used to be here, must be called again on all
-    // exit lines below
-
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fprintf(stderr, "ERROR Failed to seek file '%s'\n", args->filename);
-        fclose(f);
-        return EXIT_IO_ERROR;
-    }
-
-    size_t size = ftell(f);
-    if (size < 0) {
-        fprintf(stderr, "ERROR Failed to read file '%s'\n", args->filename);
-        fclose(f);
-        return EXIT_IO_ERROR;
-    }
-
-    if (verbose_flag)
-        fprintf(stderr, "VERBOSE File size: %ld\n", size);
-
-    rewind(f);
-
-    buf = malloc(size);
-    if (!buf) {
-        fprintf(stderr, "ERROR Failed to allocate file buffer\n");
-        fclose(f);
-        return EXIT_IO_ERROR;
-    }
-
-    fread(buf, 1, size, f);
-    fclose(f);
-
-    // if (args->output_flag != NULL) {
-        // TODO
-    // }
-
     // configuring the file for reading
+    if (args->output_flag != NULL && args->output_flag->string != NULL) {
+        w_out = fopen(args->output_flag->string, "wb");
+        if (w_out == NULL) {
+            printf("ERROR Failed to open output file for writing\n");
+            return EXIT_IO_ERROR;
+        }
+        output_comments = 0;
+    }
+
     if (args->comment_flags != NULL) {
         if (w_out == NULL) {
-            // no output configured, print to stdout
-            output_comments = 0;
             w_out = stdout;
         }
+        output_comments = 0;
         comment_flags = args->comment_flags;
     }
 
+    FILE *f;
+    if (args->filename == NULL) {
+        f = stdin;
+    } else {
+        if (access(args->filename, F_OK) != 0) {
+            fprintf(stderr, "ERROR File '%s' cannot be accessed\n", args->filename);
+            cli_free_user_args(args);
+            return EXIT_IO_ERROR;
+        }
+        
+        f = fopen(args->filename, "rb");
+        if (f == NULL) {
+            fprintf(stderr, "ERROR Failed to open file '%s'\n", args->filename);
+            cli_free_user_args(args);
+            return EXIT_IO_ERROR;
+        }
+    }
+
+    // TODO cli_free_user_args used to be here, must be called again on all
+    // exit lines below
+
+    // configure gif parsing state
     gifmetadata_state *gifmetadata_s = gifmetadata_state_new();
     if (gifmetadata_s == NULL) {
         fprintf(stderr, "ERROR Failed to allocate state memory\n");
         return EXIT_MEM_ERROR;
     }
-    int status = gifmetadata_parse_gif(gifmetadata_s, buf, size, &extension_cb, &state_cb);
 
-    switch (status) {
-    case GIFMETADATA_SUCCESS:
-        break;
-    case GIFMETADATA_INVALID_SIG:
-        fprintf(stderr, "ERROR Unsupported GIF version (invalid signature)\n");
-        return EXIT_PARSE_ERROR;
-    case GIFMETADATA_COMMENT_EXCEEDS_BOUNDS:
-        fprintf(stderr, "ERROR Comment exceeds maximum comment length\n");
-        return EXIT_PARSE_ERROR;
-    case GIFMETADATA_ALLOC_FAILED:
-        fprintf(stderr, "ERROR Failed to allocate memory\n");
+    // read file chunk by chunk
+    unsigned char *buf = malloc(BUF_SIZE);
+    if (buf == NULL) {
+        printf("ERROR Buffer memory alloc failure\n");
         return EXIT_MEM_ERROR;
-    case GIFMETADATA_UNEXPECTED_EOF:
+    }
+
+    size_t total_b;
+    size_t b;
+    int parse_status;
+    while ((b = fread(buf, 1, BUF_SIZE, f)) != 0) {
+        w_chunk_i = 0;
+        parse_status = gifmetadata_parse_gif(gifmetadata_s, buf, b, &extension_cb, &state_cb);
+        switch (parse_status) {
+        case GIFMETADATA_SUCCESS:
+            break;
+        case GIFMETADATA_INVALID_SIG:
+            fprintf(stderr, "ERROR Unsupported GIF version (invalid signature)\n");
+            return EXIT_PARSE_ERROR;
+        case GIFMETADATA_COMMENT_EXCEEDS_BOUNDS:
+            fprintf(stderr, "ERROR Comment exceeds maximum comment length\n");
+            return EXIT_PARSE_ERROR;
+        case GIFMETADATA_ALLOC_FAILED:
+            fprintf(stderr, "ERROR Failed to allocate memory\n");
+            return EXIT_MEM_ERROR;
+        default:
+            fprintf(stderr, "ERROR Unknown error\n");
+            return 1;
+        }
+        total_b += b;
+
+        // before the next loop, write remaining
+        if (w_out != NULL) {
+            fwrite(buf+w_chunk_i, 1, b-w_chunk_i, w_out);
+        }
+    }
+
+    if (ferror(f) != 0) {
+        fclose(f);
+        printf("ERROR Error reading input file\n"); 
+        return EXIT_IO_ERROR;
+    }
+
+    fclose(f);
+
+    if (total_b == 0) {
+        printf("ERROR Empty file\n");
+        return EXIT_IO_ERROR;
+    }
+    if (gifmetadata_s->gif_version == 0) {
+        printf("ERROR Invalid GIF file (missing signature)\n");
+        return EXIT_IO_ERROR;
+    }
+    // check for unexpected eof
+    if (gifmetadata_s->read_state != trailer) {
         // non-fatal status code
         fprintf(stderr, "WARNING Unexpected end of file\n");
-        break;
-    default:
-        fprintf(stderr, "ERROR Unknown error\n");
-        return 1;
     }
 
     if (verbose_flag) {
@@ -266,6 +266,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "unknown (%d)\n", gifmetadata_s->gif_version);
         }
 
+        fprintf(stderr, "VERBOSE File size: %ld bytes\n", total_b);
         fprintf(stderr, "VERBOSE Canvas width: %d\n", gifmetadata_s->canvas_width);
         fprintf(stderr, "VERBOSE Canvas height: %d\n", gifmetadata_s->canvas_height);
     }
