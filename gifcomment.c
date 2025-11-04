@@ -31,7 +31,7 @@
 #define EXIT_MEM_ERROR 3
 #define EXIT_PARSE_ERROR 4
 
-#define BUF_SIZE 256
+#define CHUNK_SIZE 2048
 
 const unsigned char comment_extension[] = { 0x21, 0xfe };
 
@@ -94,7 +94,7 @@ void state_cb(gifmetadata_state *s, enum gifmetadata_read_state state) {
         fwrite(&comment_extension, 1, sizeof(comment_extension), w_out);
         unsigned char len;
         if (comment->string_len > 255) {
-            printf("WARNING Comment length is longer than 255 characters, this is may cause incompatibility issues\n");
+            fprintf(stderr, "WARNING Comment length is longer than 255 characters, this is may cause incompatibility issues\n");
             len = 255;
         } else {
             len = (unsigned char)comment->string_len;
@@ -108,10 +108,11 @@ void state_cb(gifmetadata_state *s, enum gifmetadata_read_state state) {
     w_comments = 1; 
 }
 
+// TODO gif comment scrubbing
 int main(int argc, char **argv) {
     cli_user_args *args = cli_new_user_args();
     if (args == NULL) {
-        printf("ERROR Failed to allocate user arguments\n");
+        fprintf(stderr, "ERROR Failed to allocate user arguments\n");
         return EXIT_MEM_ERROR;
     }
 
@@ -123,26 +124,32 @@ int main(int argc, char **argv) {
     case CLI_SUCCESS:
         break;
     case CLI_INVALID_FLAG:
-        printf("ERROR Invalid flag '%c'\n", invalid_flag);
+        fprintf(stderr, "ERROR Invalid flag '%c'\n", invalid_flag);
         return EXIT_PARSE_ERROR;
     case CLI_ALLOC_FAILURE:
-        printf("ERROR Memory alloc failure\n");
+        fprintf(stderr, "ERROR Memory alloc failure\n");
         return EXIT_MEM_ERROR;
     case CLI_EXCEEDS_ARG_MAX_LEN:
-        printf("ERROR Argument exceeds the maximum length of %d characters\n", CLI_ARG_MAX_LEN);
+        fprintf(stderr, "ERROR Argument exceeds the maximum length of %d characters\n", CLI_ARG_MAX_LEN);
         return EXIT_PARSE_ERROR;
     case CLI_MULTIPLE_INPUTS:
-        printf("ERROR More than one input file provided\n");
+        fprintf(stderr, "ERROR More than one input file provided\n");
         return EXIT_PARSE_ERROR;
     case CLI_MULTIPLE_OUTPUTS:
-        printf("ERROR More than one output file provided\n");
+        fprintf(stderr, "ERROR More than one output file provided\n");
         return EXIT_PARSE_ERROR;
     case CLI_MISSING_FLAG_ARG:
-        printf("ERROR Flag '%c' is missing an argument\n", invalid_flag);
+        fprintf(stderr, "ERROR Flag '%c' is missing an argument\n", invalid_flag);
         return EXIT_PARSE_ERROR;
     default:
-        printf("ERROR Unknown\n");
+        fprintf(stderr, "ERROR Unknown error\n");
         return EXIT_PARSE_ERROR;
+    }
+
+    if (args->help_flag) {
+        printf("gifcomment [-h] [-a] [-v] [-d] [-c <comment>] [-o <output>] [input]\n");
+        cli_free_user_args(args);
+        return 0;
     }
 
     verbose_flag = args->verbose_flag;
@@ -152,7 +159,7 @@ int main(int argc, char **argv) {
     if (args->output_flag != NULL && args->output_flag->string != NULL) {
         w_out = fopen(args->output_flag->string, "wb");
         if (w_out == NULL) {
-            printf("ERROR Failed to open output file for writing\n");
+            fprintf(stderr, "ERROR Failed to open output file for writing\n");
             return EXIT_IO_ERROR;
         }
         output_comments = 0;
@@ -195,16 +202,16 @@ int main(int argc, char **argv) {
     }
 
     // read file chunk by chunk
-    unsigned char *buf = malloc(BUF_SIZE);
+    unsigned char *buf = malloc(CHUNK_SIZE);
     if (buf == NULL) {
-        printf("ERROR Buffer memory alloc failure\n");
+        fprintf(stderr, "ERROR Buffer memory alloc failure\n");
         return EXIT_MEM_ERROR;
     }
 
     size_t total_b;
     size_t b;
     int parse_status;
-    while ((b = fread(buf, 1, BUF_SIZE, f)) != 0) {
+    while ((b = fread(buf, 1, CHUNK_SIZE, f)) != 0) {
         w_chunk_i = 0;
         parse_status = gifmetadata_parse_gif(gifmetadata_s, buf, b, &extension_cb, &state_cb);
         switch (parse_status) {
@@ -233,18 +240,18 @@ int main(int argc, char **argv) {
 
     if (ferror(f) != 0) {
         fclose(f);
-        printf("ERROR Error reading input file\n"); 
+        fprintf(stderr, "ERROR Error reading input file\n"); 
         return EXIT_IO_ERROR;
     }
 
     fclose(f);
 
     if (total_b == 0) {
-        printf("ERROR Empty file\n");
+        fprintf(stderr, "ERROR Empty file\n");
         return EXIT_IO_ERROR;
     }
     if (gifmetadata_s->gif_version == 0) {
-        printf("ERROR Invalid GIF file (missing signature)\n");
+        fprintf(stderr, "ERROR Invalid GIF file (missing signature)\n");
         return EXIT_IO_ERROR;
     }
     // check for unexpected eof
